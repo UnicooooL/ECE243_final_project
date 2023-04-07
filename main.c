@@ -125,20 +125,21 @@ int main(void){
     colorRestrict(idx, color);
 
     while (1){
+        /* HEX: a displayer to show the marks */
         scoreDisplay();
-        colorRestrict(idx, color);
+        //another function to calculate the boxes two users owned...
+
+        /* LED 0-5: an indicator for users to tell them which color they cannot pick */
+        colorRestrict(idx, color);  //each time change the idx to change the color stored
         /* change the color for boxes, use interrupt to get user input */
         //SW 0-4: used to switch colors; | 0, Yellow | 1, Pink | 2, Cyan | 3, Blue | 4, Grey |
-        //LED 0-5: an indicator for users to tell them which color they cannot pick
         //KEY 0-2: switch player
-        //HEX: a displayer to show the marks
 
-        /* code for drawing the boxes */
+        /* code for drawing the boxes; read from user interrupt */
         //get user chose color and change the user's 'region' into same color...
-
-        /* code for updating the locations of the new box based on user input (read from interrupt) */
-        //find the new direction/position...
-        //update location...
+        /*starting from lower left corner, traverse to find all connected boxes that have same color as that corner,
+          changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
+          current region's color to the selected color; no need to manipulate other color boxes. */
 
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
@@ -352,6 +353,33 @@ void scoreDisplay(){
     }
 }
 
+void scoreCount(int idx[25], int color[5]){
+    //color for user A; lower left corner
+    int A_color = color[idx[20]];
+    int cnt = 1;
+    int curr_loc = 20;
+    int right = 5;
+    int up = 5;
+    for(int j = 0; j < 4; j++){
+        for(int i = 1; i < right; i++){  //right direction; not including origin
+            if(color[idx[curr_loc + i]] == A_color){
+                cnt++;
+            }
+            if(color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
+                break;  //stop counting
+            }
+        }
+        for(int i = 1; i < up; i++){  //up direction
+            if(color[idx[curr_loc - i * up]] == A_color){
+                cnt++;
+            }
+            if(i != up - 1 && color[idx[curr_loc - (i + 1) * up]] != A_color){
+                break;
+            }
+        }
+        curr_loc = 20 - 2 * j - 1;  //update current location; 20, 16, 12, 8, 4
+    }
+}
 
 // /*
 // Initialize the banked stack pointer register for IRQ mode
