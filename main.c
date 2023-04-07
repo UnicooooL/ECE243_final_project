@@ -102,6 +102,7 @@ int main(void){
 
     while (1){
         scoreDisplay();
+        colorRestrict(idx);
         /* change the color for boxes, use interrupt to get user input */
         //SW 0-4: used to switch colors; | 0, Yellow | 1, Pink | 2, Cyan | 3, Blue | 4, Grey |
         //LED 0-5: an indicator for users to tell them which color they cannot pick
@@ -173,8 +174,23 @@ void initial_setup(short int color[5], int idx[25]){
 }  //240 for xy; 5*5; 48 pixels per box;
 
 /* LED indicators */
-void colorRestrict(){
-
+void colorRestrict(int idx[25]){
+    if(idx[20] ==YELLOW || idx[4] == YELLOW){
+        int* LED = LEDR_BASE;
+        *LED = 0x1;
+    }else if(idx[20] == PINK || idx[4] == PINK){
+        int* LED = LEDR_BASE;
+        *LED = 0x1;
+    }else if(idx[20] == CYAN || idx[4] == CYAN){
+        int* LED = LEDR_BASE;
+        *LED = 0x1;
+    }else if(idx[20] == BLUE || idx[4] == BLUE){
+        int* LED = LEDR_BASE;
+        *LED = 0x1;
+    }else if(idx[20] == GREY || idx[4] == GREY){
+        int* LED = LEDR_BASE;
+        *LED = 0x1;
+    }
 }
 
 /* HEX display for score */
