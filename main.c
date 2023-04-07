@@ -2,6 +2,9 @@
 #define SDRAM_BASE            0xC0000000
 #define FPGA_ONCHIP_BASE      0xC8000000
 #define FPGA_CHAR_BASE        0xC9000000
+#define HW_REGS_BASE          0xff200000
+#define HW_REGS_SPAN          0x00200000
+#define HW_REGS_MASK          (HW_REGS_SPAN - 1)
 
 /* Cyclone V FPGA devices */
 #define LEDR_BASE             0xFF200000
@@ -12,6 +15,19 @@
 #define TIMER_BASE            0xFF202000
 #define PIXEL_BUF_CTRL_BASE   0xFF203020
 #define CHAR_BUF_CTRL_BASE    0xFF203030
+
+/* bit code for HEX display */
+#define ZERO 0b00111111
+#define ONE 0b00000110
+#define TWO 0b01011011
+#define THREE 0b01001111
+#define FOUR 0b01100110
+#define FIVE 0b01101101
+#define SIX 0b01111101
+#define SEVEN 0b00000111
+#define EIGHT 0b01111111
+#define NINE 0b01100111
+#define BLANK 0b00000000
 
 /* VGA colors */
 #define WHITE 0xFFFF
@@ -54,9 +70,11 @@ void wait_for_vsync();
 void drawBoxInitial(int coor_x, int coor_y, short int color);
 void clear_screen_init();
 void draw_pixel(int x, int y, short int line_color);
+void scoreDisplay();
 
 /* global variable */
 volatile int pixel_buffer_start; 
+bool initial = false;
 
 /* main function */
 int main(void){
@@ -80,10 +98,12 @@ int main(void){
     pixel_buffer_start = *(pixel_ctrl_ptr + 1); // we draw on the back buffer
     clear_screen_init(); // pixel_buffer_start points to the pixel buffer
     initial_setup(color, idx);
+    initial = true;
 
     while (1){
+        scoreDisplay();
         /* change the color for boxes, use interrupt to get user input */
-        //SW 0-5: used to switch colors
+        //SW 0-4: used to switch colors; | 0, Yellow | 1, Pink | 2, Cyan | 3, Blue | 4, Grey |
         //LED 0-5: an indicator for users to tell them which color they cannot pick
         //KEY 0-2: switch player
         //HEX: a displayer to show the marks
@@ -97,6 +117,7 @@ int main(void){
 
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
+        initial = false;
     }
     return 0;
 }
@@ -150,4 +171,20 @@ void initial_setup(short int color[5], int idx[25]){
         scale++;
     }
 }  //240 for xy; 5*5; 48 pixels per box;
+
+/* LED indicators */
+void colorRestrict(){
+
+}
+
+/* HEX display for score */
+void scoreDisplay(){
+    //initial state
+    if(initial == true){
+        int *HEX0 = HEX3_HEX0_BASE;
+        *HEX0 = 0x3f403f3f;  //3f = 0; 40 = -;
+        int *HEX5 = HEX5_HEX4_BASE;
+        *HEX5 = ZERO;
+    }
+}
 
