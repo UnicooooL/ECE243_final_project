@@ -63,6 +63,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 
 /* function declare */
 void initial_setup(short int color[5], int idx[25]);
@@ -72,18 +73,33 @@ void clear_screen_init();
 void draw_pixel(int x, int y, short int line_color);
 void scoreDisplay();
 
+
 /* global variable */
 volatile int pixel_buffer_start; 
 bool initial = false;
 
+
 /* main function */
 int main(void){
+    srand(time(NULL)); // makes sure that a new color pattern is generated each time
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
     // declare other variables
     short int color[5] = {YELLOW, PINK, CYAN, BLUE, GREY};
     int idx[25];  //CONTAINER FOR 25 RANDOM
-    for(int i = 0; i < 25; i++){
-        idx[i] = rand() % 5;
+    // code generates the numbers such that no neighbouring colors are the same as the current colour
+    int grid_width = 5;
+    int grid_height = 5;
+    for (int i = 0; i < grid_height; i++) {
+        for (int j = 0; j < grid_width; j++) {
+            int color_idx;
+            // Loop generates a new color, until the neighbouring colors are all unique
+            do {
+                // gets the random color number until it doesn't match its neighbouring colors
+                color_idx = rand() % 5;
+
+            } while ((i > 0 && idx[(i-1)*grid_width+j] == color_idx) || (j > 0 && idx[i*grid_width+(j-1)] == color_idx));
+            idx[i*grid_width+j] = color_idx;
+        }
     }
     /* set front pixel buffer to start of FPGA On-chip memory */
     *(pixel_ctrl_ptr + 1) = FPGA_ONCHIP_BASE; // first store the address in the back buffer
@@ -122,6 +138,8 @@ int main(void){
     }
     return 0;
 }
+
+
 
 /* code for subroutines (not shown) */
 /* given helper function from lecture */
