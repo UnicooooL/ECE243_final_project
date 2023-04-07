@@ -83,22 +83,26 @@ bool initial = false;
 int main(void){
     srand(time(NULL)); // makes sure that a new color pattern is generated each time
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
+
+    //set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
+    //config_GIC(); // configure the general interrupt controller
+
     // declare other variables
     short int color[5] = {YELLOW, PINK, CYAN, BLUE, GREY};
     int idx[25];  //CONTAINER FOR 25 RANDOM
     // code generates the numbers such that no neighbouring colors are the same as the current colour
-    int grid_width = 5;
-    int grid_height = 5;
-    for (int i = 0; i < grid_height; i++) {
-        for (int j = 0; j < grid_width; j++) {
+    int grid_width = 5; int grid_height = 5;
+    for (int h = 0; h < grid_height; h++) {
+        for (int w = 0; w < grid_width; w++) {
             int color_idx;
             // Loop generates a new color, until the neighbouring colors are all unique
             do {
                 // gets the random color number until it doesn't match its neighbouring colors
                 color_idx = rand() % 5;
-
-            } while ((i > 0 && idx[(i-1)*grid_width+j] == color_idx) || (j > 0 && idx[i*grid_width+(j-1)] == color_idx));
-            idx[i*grid_width+j] = color_idx;
+            
+            // loop checks if the current color is the color above it or the color beside it, is the same color
+            } while ((h > 0 && idx[(h-1)*grid_width+w] == color_idx) || (w > 0 && idx[h*grid_width+(w-1)] == color_idx));
+            idx[h*grid_width+w] = color_idx;
         }
     }
     /* set front pixel buffer to start of FPGA On-chip memory */
@@ -195,16 +199,16 @@ void initial_setup(short int color[5], int idx[25]){
 void colorRestrict(int idx[25]){
     if(idx[20] ==YELLOW || idx[4] == YELLOW){
         int* LED = LEDR_BASE;
-        *LED = 0x1;
+        *LED = 0x7F;
     }else if(idx[20] == PINK || idx[4] == PINK){
         int* LED = LEDR_BASE;
-        *LED = 0x1;
+        *LED = 0x3F;
     }else if(idx[20] == CYAN || idx[4] == CYAN){
         int* LED = LEDR_BASE;
-        *LED = 0x1;
+        *LED = 0x1F;
     }else if(idx[20] == BLUE || idx[4] == BLUE){
         int* LED = LEDR_BASE;
-        *LED = 0x1;
+        *LED = 0xF;
     }else if(idx[20] == GREY || idx[4] == GREY){
         int* LED = LEDR_BASE;
         *LED = 0x1;
@@ -222,3 +226,54 @@ void scoreDisplay(){
     }
 }
 
+
+// /*
+// Initialize the banked stack pointer register for IRQ mode
+// Code from DE1-SoC_Computer_ARM.pdf, Listing 12 from 9.4 interrupts
+// */
+// void set_A9_IRQ_stack(void){
+//     int stack, mode;
+//     stack = A9_ONCHIP_END - 7; // top of A9 onchip memory, aligned to 8 bytes
+//     /* change processor to IRQ mode with interrupts disabled */
+//     mode = INT_DISABLE | IRQ_MODE;
+//     asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
+//     /* set banked stack pointer */
+//     asm("mov sp, %[ps]" : : [ps] "r"(stack));
+//     /* go back to SVC mode before executing subroutine return! */
+//     mode = INT_DISABLE | SVC_MODE;
+//     asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
+// }
+
+
+// /*
+// Turn on interrupts in the ARM processor
+// Code from DE1-SoC_Computer_ARM.pdf, Listing 12 from 9.4 interrupts
+// */
+// void enable_A9_interrupts(void){
+//     int status = SVC_MODE | INT_ENABLE;
+//     asm("msr cpsr, %[ps]" : : [ps] "r"(status));
+// }
+
+// /*
+// Configure the Generic Interrupt Controller (GIC)
+// Code from DE1-SoC_Computer_ARM.pdf, Listing 12 from 9.4 interrupts
+// */
+// void config_GIC(void){ // still editing //
+
+//     int address; // used to calculate register addresses
+    
+//     // configure the key interrupts
+//     // configure the SW interrupts
+
+//     // Set Interrupt Priority Mask Register (ICCPMR). Enable interrupts of all
+//     // priorities
+//     address = MPCORE_GIC_CPUIF + ICCPMR;
+//     *((int *)address) = 0xFFFF;
+//     // Set CPU Interface Control Register (ICCICR). Enable signaling of interrupts
+//     address = MPCORE_GIC_CPUIF + ICCICR;
+//     *((int *)address) = ENABLE;
+//     // Configure the Distributor Control Register (ICDDCR) to send pending
+//     // interrupts to CPUs
+//     address = MPCORE_GIC_DIST + ICDDCR;
+//     *((int *)address) = ENABLE;
+// }
