@@ -116,11 +116,6 @@ bool initial = false;
 
 /* main function */
 int main(void){
-    disable_A9_interrupts(); // disable interrupts in the A9 processor
-    set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
-    config_GIC(); // configure the general interrupt controller
-    config_KEYs(); // configure pushbutton KEYs to generate interrupts
-    enable_A9_interrupts(); // enable interrupts in the A9 processor
 
     srand(time(NULL)); // makes sure that a new color pattern is generated each time
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
@@ -160,6 +155,12 @@ int main(void){
     initial_setup(color, idx);
     initial = true;
     colorRestrict(idx, color);
+    
+    disable_A9_interrupts(); // disable interrupts in the A9 processor
+    set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
+    config_GIC(); // configure the general interrupt controller
+    config_KEYs(); // configure pushbutton KEYs to generate interrupts
+    enable_A9_interrupts(); // enable interrupts in the A9 processor
 
     while (1){
         /* HEX: a displayer to show the marks */
@@ -525,7 +526,7 @@ void scoreCount(int idx[25], int color[5]){
 
 // Code from ARM* Generic Interrupt Controller document from lab 4
 /* setup the KEY interrupts in the FPGA */
-void config_KEYs() {
+void config_KEYs() { 
     volatile int * KEY_ptr = (int *) 0xFF200050; // pushbutton KEY base address
     *(KEY_ptr + 2) = 0xF; // enable interrupts for the two KEYs
 }
@@ -544,6 +545,30 @@ void __attribute__((interrupt)) __cs3_isr_irq(void) {
     // Write to the End of Interrupt Register (ICCEOIR)
     *((int *)0xFFFEC110) = interrupt_ID;
 }
+
+
+// Define the remaining exception handlers
+void __attribute__((interrupt)) __cs3_reset(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_undef(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_swi(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_pabort(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_dabort(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_fiq(void) {
+    while (1);
+}
+
+
+
 
 /*
 * Turn off interrupts in the ARM processor
@@ -601,7 +626,7 @@ void config_GIC(void) {
 *
 * This routine checks which KEY has been pressed. It writes to HEX0
 *******************************************************************/
-void pushbutton_ISR(void) {
+void pushbutton_ISR(void) { // need to configure this --------------------------------
     /* KEY base address */
     volatile int * KEY_ptr = (int *) 0xFF200050;
     /* HEX display base address */
