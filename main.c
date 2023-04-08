@@ -207,7 +207,6 @@ void colorRestrict(int idx[25], int color[5]){
     bool pink = false;
     bool cyan = false;
     bool blue = false;
-    bool grey = false;
     /* light the LED for lower left corner and upper right color */
     //yellow, 1
     if(color[idx[20]] == YELLOW){
@@ -270,7 +269,7 @@ void colorRestrict(int idx[25], int color[5]){
     }
     //blue, 4
     if(color[idx[20]] == BLUE){
-        if(yellow = true){
+        if(yellow == true){
             int* LED = LEDR_BASE;
             *LED = 0x9;
         }else if(pink == true){
@@ -286,7 +285,7 @@ void colorRestrict(int idx[25], int color[5]){
         blue = true;
     }
     if(color[idx[4]] == BLUE){
-        if(yellow = true){
+        if(yellow == true){
             int* LED = LEDR_BASE;
             *LED = 0x9;
         }else if(pink == true){
@@ -319,7 +318,6 @@ void colorRestrict(int idx[25], int color[5]){
             int* LED = LEDR_BASE;
             *LED = 0x10;
         }
-        grey = true;
     }
     if(color[idx[4]] == GREY){
         if(yellow == true){
@@ -338,7 +336,6 @@ void colorRestrict(int idx[25], int color[5]){
             int* LED = LEDR_BASE;
             *LED = 0x10;
         }
-        grey = true;
     }
 }
 
