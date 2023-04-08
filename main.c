@@ -17,17 +17,42 @@
 #define CHAR_BUF_CTRL_BASE    0xFF203030
 
 /* bit code for HEX display */
-#define ZERO 0b00111111
-#define ONE 0b00000110
-#define TWO 0b01011011
-#define THREE 0b01001111
-#define FOUR 0b01100110
-#define FIVE 0b01101101
-#define SIX 0b01111101
-#define SEVEN 0b00000111
-#define EIGHT 0b01111111
-#define NINE 0b01100111
-#define BLANK 0b00000000
+//tens digit for HEX3-0; on HEX1
+#define ZERO_T  0x00003F00
+#define ONE_T   0x00000600
+#define TWO_T   0x00005B00
+#define THREE_T 0x00004F00
+#define FOUR_T  0x00006600
+#define FIVE_T  0x00006D00
+#define SIX_T   0x00007D00
+#define SEVEN_T 0x00000700
+#define EIGHT_T 0x00007F00
+#define NINE_T  0x00006700
+
+//ones digit for HEX3
+#define ZERO_B  0x3F000000
+#define ONE_B   0x06000000
+#define TWO_B   0x5B000000
+#define THREE_B 0x4F000000
+#define FOUR_B  0x66000000
+#define FIVE_B  0x6D000000
+#define SIX_B   0x7D000000
+#define SEVEN_B 0x07000000
+#define EIGHT_B 0x7F000000
+#define NINE_B  0x67000000
+
+//tens digit for HEX4, ones digit for HEX0
+#define ZERO  0x0000003F
+#define ONE   0x00000006
+#define TWO   0x0000005B
+#define THREE 0x0000004F
+#define FOUR  0x00000066
+#define FIVE  0x0000006D
+#define SIX   0x0000007D
+#define SEVEN 0x00000007
+#define EIGHT 0x0000007F
+#define NINE  0x00000067
+#define BLANK 0x00000000
 
 /* VGA colors */
 #define WHITE 0xFFFF
@@ -71,8 +96,9 @@ void wait_for_vsync();
 void drawBoxInitial(int coor_x, int coor_y, int color);
 void clear_screen_init();
 void draw_pixel(int x, int y, int line_color);
-void scoreDisplay();
+void scoreDisplay(int cntB, int cntA);
 void colorRestrict(int idx[25], int color[5]);
+void scoreCount(int idx[25], int color[5]);
 
 
 /* global variable */
@@ -126,8 +152,8 @@ int main(void){
 
     while (1){
         /* HEX: a displayer to show the marks */
-        scoreDisplay();
-        //another function to calculate the boxes two users owned...
+        //calculate the boxes two users owned
+        scoreCount(idx, color);  //put after the color idx has been changed (after get user input)
 
         /* LED 0-5: an indicator for users to tell them which color they cannot pick */
         colorRestrict(idx, color);  //each time change the idx to change the color stored
@@ -340,42 +366,150 @@ void colorRestrict(int idx[25], int color[5]){
 }
 
 /* HEX display for score */
-void scoreDisplay(){
-    //initial state
-    if(initial == true){
-        int *HEX0 = HEX3_HEX0_BASE;
-        *HEX0 = 0x3f403f3f;  //3f = 0; 40 = -;
-        int *HEX5 = HEX5_HEX4_BASE;
-        *HEX5 = ZERO;
+void scoreDisplay(int cntB, int cntA){
+    int tens_B = ZERO_T;  //hold the tens digit for B
+    int rest_B = cntB;  //hold the ones digit for B
+    int tens_A = ZERO;  //hold the tens digit for A
+    int rest_A = cntA;  //hold the ones digit for A
+
+    /* user B score */
+    while(rest_B - 10 > 0 || rest_B - 10 == 0){  //seperate the tens digit
+        rest_B = rest_B - 10;
+        tens_B++;
     }
+    int number[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    /* HEX1 display */
+    int bit_code_HEX1[10] = {ZERO_T, ONE_T, TWO_T, THREE_T, FOUR_T, FIVE_T, SIX_T, SEVEN_T, EIGHT_T, NINE_T};
+    for(int i = 0; i < 10; i++){
+        if(number[i] == tens_B){
+            tens_B = bit_code_HEX1[i];  //assign tens the bit code for HEX1 position
+            break;
+        }
+    }
+    /* HEX0 display */
+    int bit_code_HEX0[10] = {ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE};
+    for(int i = 0; i < 10; i++){
+        if(number[i] == rest_B){
+            rest_B = bit_code_HEX0[i];  //assign tens the bit code for HEX0 position
+            break;
+        }
+    }
+
+    /* user A score */
+    while(rest_A - 10 > 0 || rest_A - 10 == 0){  //seperate the tens digit
+        rest_A = cntA - 10;
+        tens_A++;
+    }
+    /* HEX3 display */
+    int bit_code_HEX3[10] = {ZERO_B, ONE_B, TWO_B, THREE_B, FOUR_B, FIVE_B, SIX_B, SEVEN_B, EIGHT_B, NINE_B};
+    for(int i = 0; i < 10; i++){
+        if(number[i] == rest_A){
+            rest_A = bit_code_HEX3[i];  //assign tens the bit code for HEX3 position
+            break;
+        }
+    }
+    /* HEX4 display */
+    int bit_code_HEX4[10] = {ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE};
+    for(int i = 0; i < 10; i++){
+        if(number[i] == tens_A){
+            tens_A = bit_code_HEX4[i];  //assign tens the bit code for HEX4 position
+            break;
+        }
+    }
+
+    /* Prepare for display */
+    int HEX_0_3 = tens_B + rest_B + rest_A + 0x00400000;
+    int HEX_4 = tens_A;
+    int *HEX_0_base = HEX3_HEX0_BASE;
+    int *HEX_4_base = HEX5_HEX4_BASE;
+    *HEX_0_base = HEX_0_3;
+    *HEX_4_base = HEX_4;
 }
 
 void scoreCount(int idx[25], int color[5]){
     //color for user A; lower left corner
     int A_color = color[idx[20]];
-    int cnt = 1;
+    int cntA = 1;
     int curr_loc = 20;
     int right = 5;
     int up = 5;
+    int up_limit = 5;
+    int right_limit = 5;
+    bool enter_A = false;
     for(int j = 0; j < 4; j++){
-        for(int i = 1; i < right; i++){  //right direction; not including origin
+        if(color[idx[curr_loc]] != A_color){
+            break;
+        }
+        if(enter_A == true){
+            cntA++;  //count previous current location if neighbouring color is same for region
+        }
+        for(int i = 1; i < right_limit; i++){  //right direction; not including origin
             if(color[idx[curr_loc + i]] == A_color){
-                cnt++;
+                enter_A = true;
+                cntA++;
+            }else{
+                break;
             }
             if(color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
                 break;  //stop counting
             }
         }
-        for(int i = 1; i < up; i++){  //up direction
+        for(int i = 1; i < up_limit; i++){  //up direction
             if(color[idx[curr_loc - i * up]] == A_color){
-                cnt++;
+                cntA++;
+            }else{
+                break;
             }
             if(i != up - 1 && color[idx[curr_loc - (i + 1) * up]] != A_color){
                 break;
             }
         }
-        curr_loc = 20 - 2 * j - 1;  //update current location; 20, 16, 12, 8, 4
+        curr_loc = 20 - (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
+        right_limit--;
+        up_limit--;
     }
+    //color for user B; upper right corner
+    int B_color = color[idx[4]];
+    int cntB = 1;
+    int curr_loc_B = 4;
+    int left = 5;
+    int down = 5;
+    int left_limit = 5;
+    int down_limit = 5;
+    bool enter_B = false;
+    for(int j = 0; j < 4; j++){
+        if(color[idx[curr_loc]] != B_color){
+            break;
+        }
+        if(enter_B == true){
+            cntB++;  //count previous current location if neighbouring color is same for region
+        }
+        for(int i = 1; i < left_limit; i++){  //left direction; not including origin
+            if(color[idx[curr_loc_B - i]] == B_color){
+                enter_B = true;
+                cntB++;
+            }else{
+                break;
+            }
+            if(i != left - 1 && color[idx[curr_loc_B - i - 1]] != B_color){  //if connected box is not same color
+                break;  //stop counting
+            }
+        }
+        for(int i = 1; i < down_limit; i++){  //up direction
+            if(color[idx[curr_loc_B + i * down]] == B_color){
+                cntB++;
+            }else{
+                break;
+            }
+            if(i != down - 1 && color[idx[curr_loc_B + (i + 1) * down]] != B_color){
+                break;
+            }
+        }
+        curr_loc = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
+        down_limit--;
+        left_limit--;
+    }
+    scoreDisplay(cntB, cntA);
 }
 
 // /*
