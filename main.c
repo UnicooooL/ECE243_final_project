@@ -99,6 +99,14 @@ void draw_pixel(int x, int y, int line_color);
 void scoreDisplay(int cntB, int cntA);
 void colorRestrict(int idx[25], int color[5]);
 void scoreCount(int idx[25], int color[5]);
+void config_KEYs();
+void __attribute__((interrupt))__cs3_isr_irq(void);
+void disable_A9_interrupts(void);
+void enable_A9_interrupts(void);
+void set_A9_IRQ_stack(void);
+void config_GIC(void);
+void pushbutton_ISR(void);
+void config_interrupt(int N, int CPU_target);
 
 
 /* global variable */
@@ -108,12 +116,15 @@ bool initial = false;
 
 /* main function */
 int main(void){
+    disable_A9_interrupts(); // disable interrupts in the A9 processor
+    set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
+    config_GIC(); // configure the general interrupt controller
+    config_KEYs(); // configure pushbutton KEYs to generate interrupts
+    enable_A9_interrupts(); // enable interrupts in the A9 processor
+
     srand(time(NULL)); // makes sure that a new color pattern is generated each time
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
-
-    //set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
-    //config_GIC(); // configure the general interrupt controller
-
+    
     // declare other variables
     int color[5] = {YELLOW, PINK, CYAN, BLUE, GREY};
     int idx[25];  //CONTAINER FOR 25 RANDOM
@@ -512,53 +523,123 @@ void scoreCount(int idx[25], int color[5]){
     scoreDisplay(cntB, cntA);
 }
 
-// /*
-// Initialize the banked stack pointer register for IRQ mode
-// Code from DE1-SoC_Computer_ARM.pdf, Listing 12 from 9.4 interrupts
-// */
-// void set_A9_IRQ_stack(void){
-//     int stack, mode;
-//     stack = A9_ONCHIP_END - 7; // top of A9 onchip memory, aligned to 8 bytes
-//     /* change processor to IRQ mode with interrupts disabled */
-//     mode = INT_DISABLE | IRQ_MODE;
-//     asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
-//     /* set banked stack pointer */
-//     asm("mov sp, %[ps]" : : [ps] "r"(stack));
-//     /* go back to SVC mode before executing subroutine return! */
-//     mode = INT_DISABLE | SVC_MODE;
-//     asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
-// }
+// Code from ARM* Generic Interrupt Controller document from lab 4
+/* setup the KEY interrupts in the FPGA */
+void config_KEYs() {
+    volatile int * KEY_ptr = (int *) 0xFF200050; // pushbutton KEY base address
+    *(KEY_ptr + 2) = 0xF; // enable interrupts for the two KEYs
+}
 
 
-// /*
-// Turn on interrupts in the ARM processor
-// Code from DE1-SoC_Computer_ARM.pdf, Listing 12 from 9.4 interrupts
-// */
-// void enable_A9_interrupts(void){
-//     int status = SVC_MODE | INT_ENABLE;
-//     asm("msr cpsr, %[ps]" : : [ps] "r"(status));
-// }
+// Code from ARM* Generic Interrupt Controller document from lab 4
+// Define the IRQ exception handler 
+void __attribute__((interrupt)) __cs3_isr_irq(void) {
+    // Read the ICCIAR from the CPU Interface in the GIC
+    int interrupt_ID = *((int *)0xFFFEC10C);
+    if (interrupt_ID == 73){ // check if interrupt is from the KEYs
+        pushbutton_ISR();
+    } else {
+        while (1);
+    }
+    // Write to the End of Interrupt Register (ICCEOIR)
+    *((int *)0xFFFEC110) = interrupt_ID;
+}
 
-// /*
-// Configure the Generic Interrupt Controller (GIC)
-// Code from DE1-SoC_Computer_ARM.pdf, Listing 12 from 9.4 interrupts
-// */
-// void config_GIC(void){ // still editing //
+/*
+* Turn off interrupts in the ARM processor
+*/
+void disable_A9_interrupts(void) {
+    int status = 0b11010011;
+    asm("msr cpsr, %[ps]" : : [ps] "r"(status));
+}
 
-//     int address; // used to calculate register addresses
-    
-//     // configure the key interrupts
-//     // configure the SW interrupts
 
-//     // Set Interrupt Priority Mask Register (ICCPMR). Enable interrupts of all
-//     // priorities
-//     address = MPCORE_GIC_CPUIF + ICCPMR;
-//     *((int *)address) = 0xFFFF;
-//     // Set CPU Interface Control Register (ICCICR). Enable signaling of interrupts
-//     address = MPCORE_GIC_CPUIF + ICCICR;
-//     *((int *)address) = ENABLE;
-//     // Configure the Distributor Control Register (ICDDCR) to send pending
-//     // interrupts to CPUs
-//     address = MPCORE_GIC_DIST + ICDDCR;
-//     *((int *)address) = ENABLE;
-// }
+// Code from ARM* Generic Interrupt Controller document from lab 4
+/*
+* Turn on interrupts in the ARM processor
+*/
+void enable_A9_interrupts(void) {
+    int status = 0b01010011;
+    asm("msr cpsr, %[ps]" : : [ps] "r"(status));
+}
+
+
+// Code from ARM* Generic Interrupt Controller document from lab 4
+/*
+* Initialize the banked stack pointer register for IRQ mode
+*/
+void set_A9_IRQ_stack(void) {
+    int stack, mode;
+    stack = 0xFFFFFFFF - 7; // top of A9 onchip memory, aligned to 8 bytes
+    /* change processor to IRQ mode with interrupts disabled */
+    mode = 0b11010010;
+    asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
+    /* set banked stack pointer */
+    asm("mov sp, %[ps]" : : [ps] "r"(stack));
+    /* go back to SVC mode before executing subroutine return! */
+    mode = 0b11010011;
+    asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
+}
+
+
+// Code from ARM* Generic Interrupt Controller document from lab 4
+/*
+* Configure the Generic Interrupt Controller (GIC)
+*/
+void config_GIC(void) {
+    config_interrupt (73, 1); // configure the FPGA KEYs interrupt (73)
+    // Set Interrupt Priority Mask Register (ICCPMR). Enable interrupts of all priorities
+    *((int *) 0xFFFEC104) = 0xFFFF;
+    // Set CPU Interface Control Register (ICCICR). Enable signaling of interrupts
+    *((int *) 0xFFFEC100) = 1;
+    // Configure the Distributor Control Register (ICDDCR) to send pending interrupts to CPUs
+    *((int *) 0xFFFED000) = 1;
+}
+
+/********************************************************************
+* Pushbutton - Interrupt Service Routine
+*
+* This routine checks which KEY has been pressed. It writes to HEX0
+*******************************************************************/
+void pushbutton_ISR(void) {
+    /* KEY base address */
+    volatile int * KEY_ptr = (int *) 0xFF200050;
+    /* HEX display base address */
+    volatile int * HEX3_HEX0_ptr = (int *) 0xFF200020;
+    int press, HEX_bits;
+    press = *(KEY_ptr + 3); // read the pushbutton interrupt register
+    *(KEY_ptr + 3) = press; // Clear the interrupt
+    if (press & 0x1){ // KEY0
+        HEX_bits = 0b00111111;
+    } else if (press & 0x2){ // KEY1
+        HEX_bits = 0b00000110;
+    } else if (press & 0x4){ // KEY2
+        HEX_bits = 0b01011011;
+    } else{ // press & 0x8, which is KEY3
+        HEX_bits = 0b01001111;
+        *HEX3_HEX0_ptr = HEX_bits;
+    }
+    return;
+}
+
+void config_interrupt(int N, int CPU_target) {
+    int reg_offset, index, value, address;
+    /* Configure the Interrupt Set-Enable Registers (ICDISERn).
+    * reg_offset = (integer_div(N / 32) * 4
+    * value = 1 << (N mod 32) */
+    reg_offset = (N >> 3) & 0xFFFFFFFC;
+    index = N & 0x1F;
+    value = 0x1 << index;
+    address = 0xFFFED100 + reg_offset;
+    /* Now that we know the register address and value, set the appropriate bit */
+    *(int *)address |= value;
+    /* Configure the Interrupt Processor Targets Register (ICDIPTRn)
+    * reg_offset = integer_div(N / 4) * 4
+    * index = N mod 4 */
+    reg_offset = (N & 0xFFFFFFFC);
+    index = N & 0x3;
+    address = 0xFFFED800 + reg_offset + index;
+    /* Now that we know the register address and value, write to (only) the
+    * appropriate byte */
+    *(char *)address = (char)CPU_target;
+}
