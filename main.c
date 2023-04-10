@@ -108,7 +108,7 @@ void config_GIC(void);
 void pushbutton_ISR(void);
 void switches_ISR (void);
 void config_interrupt(int N, int CPU_target);
-
+void getColor(int colorNum);
 
 /* global variable */
 volatile int pixel_buffer_start; 
@@ -464,7 +464,7 @@ void scoreDisplay(int cntB, int cntA){
 
 void scoreCount(int idx[25], int color[5]){
     //color for user A; lower left corner
-    int A_color = color[idx[20]];
+    int A_color = idx[20];
     int cntA = 1;
     int curr_loc = 20;
     int right = 5;
@@ -472,6 +472,7 @@ void scoreCount(int idx[25], int color[5]){
     int up_limit = 5;
     int right_limit = 5;
     bool enter_A = false;
+    
     for(int j = 0; j < 4; j++){
         if(color[idx[curr_loc]] != A_color){
             break;
@@ -481,6 +482,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < right_limit; i++){  //right direction; not including origin
             if(color[idx[curr_loc + i]] == A_color){
+                playerA[curr_loc + 1] = color[idx[curr_loc + 1]];
                 enter_A = true;
                 cntA++;
             }else{
@@ -492,6 +494,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < up_limit; i++){  //up direction
             if(color[idx[curr_loc - i * up]] == A_color){
+                playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
                 cntA++;
             }else{
                 break;
@@ -504,8 +507,9 @@ void scoreCount(int idx[25], int color[5]){
         right_limit--;
         up_limit--;
     }
+
     //color for user B; upper right corner
-    int B_color = color[idx[4]];
+    int B_color = idx[4];
     int cntB = 1;
     int curr_loc_B = 4;
     int left = 5;
@@ -514,7 +518,7 @@ void scoreCount(int idx[25], int color[5]){
     int down_limit = 5;
     bool enter_B = false;
     for(int j = 0; j < 4; j++){
-        if(color[idx[curr_loc]] != B_color){
+        if(color[idx[curr_loc_B]] != B_color){
             break;
         }
         if(enter_B == true){
@@ -522,17 +526,19 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < left_limit; i++){  //left direction; not including origin
             if(color[idx[curr_loc_B - i]] == B_color){
+                playerB[curr_loc_B - i] = color[idx[curr_loc_B - i]];
                 enter_B = true;
                 cntB++;
             }else{
                 break;
             }
-            if(i != left - 1 && color[idx[curr_loc_B - i - 1]] != B_color){  //if connected box is not same color
+            if(i != left - 1 && idx[curr_loc_B - i - 1] != B_color){  //if connected box is not same color
                 break;  //stop counting
             }
         }
         for(int i = 1; i < down_limit; i++){  //up direction
             if(color[idx[curr_loc_B + i * down]] == B_color){
+                playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
                 cntB++;
             }else{
                 break;
@@ -541,11 +547,11 @@ void scoreCount(int idx[25], int color[5]){
                 break;
             }
         }
-        curr_loc = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
+        curr_loc_B = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
         down_limit--;
         left_limit--;
     }
-    scoreDisplay(cntB, cntA);
+    scoreDisplay(cntA, cntB);
 }
 
 // Code from ARM* Generic Interrupt Controller document from lab 4
@@ -570,11 +576,6 @@ void __attribute__((interrupt)) __cs3_isr_irq(void) {
     // Write to the End of Interrupt Register (ICCEOIR)
     *((int *)0xFFFEC110) = interrupt_ID;
 }
-
-
-
-
-
 
 
 /*
@@ -692,4 +693,27 @@ void config_interrupt(int N, int CPU_target) {
     /* Now that we know the register address and value, write to (only) the
     * appropriate byte */
     *(char *)address = (char)CPU_target;
+}
+
+void getColor(int colorNum){
+    switch(colorNum){
+        case 0:
+            return YELLOW;
+            break;
+        case 1:
+            return PINK;
+            break;
+        case 2:
+            return CYAN;
+            break;
+        case 3:
+            return BLUE;
+            break;
+        case 4:
+            return GREY;
+            break;
+        default:
+            return WHITE;
+    }
+
 }
