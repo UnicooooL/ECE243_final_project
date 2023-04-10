@@ -630,10 +630,8 @@ void config_GIC(void) {
 
 /********************************************************************
 * Pushbutton - Interrupt Service Routine
-*
-* This routine checks which KEY has been pressed. It writes to HEX0
 *******************************************************************/
-void pushbutton_ISR(void) { // need to configure this --------------------------------
+void pushbutton_ISR(void) {
     /* KEY base address */
     volatile int * KEY_ptr = (int *) KEY_BASE;
     int press;
@@ -673,7 +671,6 @@ void switches_ISR (void){
     }
 
 }
-
 
 void config_interrupt(int N, int CPU_target) {
     int reg_offset, index, value, address;
