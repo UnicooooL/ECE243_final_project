@@ -111,10 +111,21 @@ void config_interrupt(int N, int CPU_target);
 void wait();
 void getColor(int colorNum);
 void flashingAnimation(bool A, bool B);
+int selectColor();
+void changeColorRegion(int idx[25], int color[5], int user_select, int player);
+int switchPlayer();
+
 
 /* global variable */
 volatile int pixel_buffer_start; 
 bool initial = false;
+bool yellow_0 = false;
+bool pink_1 = false;
+bool cyan_2 = false;
+bool blue_3 = false;
+bool grey_4 = false;
+bool playerA_0 = false;
+bool playerB_1 = false;
 
 int playerA[25] = {0};
 int playerB[25] = {0};
@@ -189,25 +200,30 @@ int main(void){
     clear_screen_init(); // pixel_buffer_start points to the pixel buffer
     initial_setup(color, idx);
     initial = true;
-    colorRestrict(idx, color);
-    
+    scoreCount(idx, color);  //put after the color idx has been changed (after get user input)
     
     while (1){
         /* HEX: a displayer to show the marks */
         //calculate the boxes two users owned
-        scoreCount(idx, color);  //put after the color idx has been changed (after get user input)
 
         /* LED 0-5: an indicator for users to tell them which color they cannot pick */
         colorRestrict(idx, color);  //each time change the idx to change the color stored
+
         /* change the color for boxes, use interrupt to get user input */
         //SW 0-4: used to switch colors; | 0, Yellow | 1, Pink | 2, Cyan | 3, Blue | 4, Grey |
+        int user_select = selectColor();  //store the color code
         //KEY 0-2: switch player
-
-        /* code for drawing the boxes; read from user interrupt */
+        int player = switchPlayer();  //store the player; -1 for none, 0 for A(1), 1 for B(2)
         //get user chose color and change the user's 'region' into same color...
+        changeColorRegion(idx, color, user_select, player);  //change the color idx
         /*starting from lower left corner, traverse to find all connected boxes that have same color as that corner,
           changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
           current region's color to the selected color; no need to manipulate other color boxes. */
+
+        scoreCount(idx, color);
+
+        /* code for drawing the boxes with new color idx */
+        initial_setup(color, idx);  //use precreated function to draw box with new colors
 
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
@@ -261,7 +277,8 @@ void initial_setup(int color[5], int idx[25]){
     int id = 0;
     for(int i = 0; i < ROW; i++){
         for(int j = 0; j < COLUMN; j++){
-            drawBoxInitial(40 + scale * delta_i, j * delta_j, color[idx[id]]);  //draw the color box
+            //drawBoxInitial(40 + scale * delta_i, j * delta_j, color[idx[id]]);  //draw the color box
+            drawBoxInitial(40 + j * delta_j, scale * delta_i, color[idx[id]]);  //draw the color box
             id++;
         }
         scale++;
@@ -410,20 +427,22 @@ void colorRestrict(int idx[25], int color[5]){
 /* HEX display for score */
 void scoreDisplay(int cntB, int cntA){
     int tens_B = ZERO_T;  //hold the tens digit for B
+    int tens_B_num = 0;
     int rest_B = cntB;  //hold the ones digit for B
     int tens_A = ZERO;  //hold the tens digit for A
+    int tens_A_num = 0;
     int rest_A = cntA;  //hold the ones digit for A
 
-    /* user B score */
+    /* user A score */
     while(rest_B - 10 > 0 || rest_B - 10 == 0){  //seperate the tens digit
         rest_B = rest_B - 10;
-        tens_B++;
+        tens_B_num++;
     }
     int number[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
     /* HEX1 display */
     int bit_code_HEX1[10] = {ZERO_T, ONE_T, TWO_T, THREE_T, FOUR_T, FIVE_T, SIX_T, SEVEN_T, EIGHT_T, NINE_T};
     for(int i = 0; i < 10; i++){
-        if(number[i] == tens_B){
+        if(number[i] == tens_B_num){
             tens_B = bit_code_HEX1[i];  //assign tens the bit code for HEX1 position
             break;
         }
@@ -437,10 +456,10 @@ void scoreDisplay(int cntB, int cntA){
         }
     }
 
-    /* user A score */
+    /* upper right corner score */
     while(rest_A - 10 > 0 || rest_A - 10 == 0){  //seperate the tens digit
         rest_A = cntA - 10;
-        tens_A++;
+        tens_A_num++;
     }
     /* HEX3 display */
     int bit_code_HEX3[10] = {ZERO_B, ONE_B, TWO_B, THREE_B, FOUR_B, FIVE_B, SIX_B, SEVEN_B, EIGHT_B, NINE_B};
@@ -453,7 +472,7 @@ void scoreDisplay(int cntB, int cntA){
     /* HEX4 display */
     int bit_code_HEX4[10] = {ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE};
     for(int i = 0; i < 10; i++){
-        if(number[i] == tens_A){
+        if(number[i] == tens_A_num){
             tens_A = bit_code_HEX4[i];  //assign tens the bit code for HEX4 position
             break;
         }
@@ -468,9 +487,10 @@ void scoreDisplay(int cntB, int cntA){
     *HEX_4_base = HEX_4;
 }
 
+/* count the score for A and B */
 void scoreCount(int idx[25], int color[5]){
-    //color for user A; lower left corner
-    int A_color = idx[20];
+    //color for user B; upper right corner
+    int A_color = color[idx[20]];
     int cntA = 1;
     int curr_loc = 20;
     int right = 5;
@@ -478,13 +498,15 @@ void scoreCount(int idx[25], int color[5]){
     int up_limit = 5;
     int right_limit = 5;
     bool enter_A = false;
-    
+    bool no_up = false;
+    bool no_right = false;
     for(int j = 0; j < 4; j++){
-        if(color[idx[curr_loc]] != A_color){
+        if(color[idx[curr_loc]] != A_color && enter_A == false){
             break;
         }
         if(enter_A == true){
             cntA++;  //count previous current location if neighbouring color is same for region
+            enter_A = false;
         }
         for(int i = 1; i < right_limit; i++){  //right direction; not including origin
             if(color[idx[curr_loc + i]] == A_color){
@@ -492,30 +514,35 @@ void scoreCount(int idx[25], int color[5]){
                 enter_A = true;
                 cntA++;
             }else{
+                no_right = true;
                 break;
             }
-            if(color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
+            if(i != right - 1 && color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
                 break;  //stop counting
             }
         }
         for(int i = 1; i < up_limit; i++){  //up direction
             if(color[idx[curr_loc - i * up]] == A_color){
                 playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
+                enter_A = true;
                 cntA++;
             }else{
+                no_up = true;
                 break;
             }
             if(i != up - 1 && color[idx[curr_loc - (i + 1) * up]] != A_color){
                 break;
             }
         }
+        if(no_up == true && no_right == true){
+            break;
+        }
         curr_loc = 20 - (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
         right_limit--;
         up_limit--;
     }
-
-    //color for user B; upper right corner
-    int B_color = idx[4];
+    //color for user A; lower left corner
+    int B_color = color[idx[4]];
     int cntB = 1;
     int curr_loc_B = 4;
     int left = 5;
@@ -523,12 +550,15 @@ void scoreCount(int idx[25], int color[5]){
     int left_limit = 5;
     int down_limit = 5;
     bool enter_B = false;
+    bool no_down = false;
+    bool no_left = false;
     for(int j = 0; j < 4; j++){
         if(color[idx[curr_loc_B]] != B_color){
             break;
         }
         if(enter_B == true){
             cntB++;  //count previous current location if neighbouring color is same for region
+            enter_B = false;
         }
         for(int i = 1; i < left_limit; i++){  //left direction; not including origin
             if(color[idx[curr_loc_B - i]] == B_color){
@@ -536,22 +566,28 @@ void scoreCount(int idx[25], int color[5]){
                 enter_B = true;
                 cntB++;
             }else{
+                no_left = true;
                 break;
             }
             if(i != left - 1 && idx[curr_loc_B - i - 1] != B_color){  //if connected box is not same color
                 break;  //stop counting
             }
         }
-        for(int i = 1; i < down_limit; i++){  //up direction
+        for(int i = 1; i < down_limit; i++){  //down direction
             if(color[idx[curr_loc_B + i * down]] == B_color){
                 playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
+                enter_B = true;
                 cntB++;
             }else{
+                no_down = true;
                 break;
             }
             if(i != down - 1 && color[idx[curr_loc_B + (i + 1) * down]] != B_color){
                 break;
             }
+        }
+        if(no_down == true && no_left == true){
+            break;
         }
         curr_loc_B = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
         down_limit--;
@@ -559,6 +595,159 @@ void scoreCount(int idx[25], int color[5]){
     }
     scoreDisplay(cntA, cntB);
 }
+
+/* change the corresponding color of each region */
+void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
+    int user_select = 0;
+    for(int i = 0; i < 5; i++){
+        if(color[i] == user_select_){
+            break;
+        }
+        user_select++;
+    }
+    //color for user A; lower left corner
+    if(player == 0){
+        int A_color = color[idx[20]];
+        int curr_loc = 20;
+        int previous_loc = curr_loc;
+        int right = 5;
+        int up = 5;
+        int up_limit = 5;
+        int right_limit = 5;
+        bool enter_A = false;
+        bool no_up = false;
+        bool no_right = false;
+        for(int j = 0; j < 4; j++){
+            if(color[idx[curr_loc]] != A_color){
+                break;
+            }
+            idx[curr_loc] = user_select;  //origin change color
+            if(enter_A == true){
+                idx[previous_loc] = user_select; //change color of previous current location if neighbouring color is same for region
+                enter_A = false;  //flip notation
+            }
+            for(int i = 1; i < right_limit; i++){  //right direction; not including origin
+                if(color[idx[curr_loc + i]] == A_color){
+                    enter_A = true;
+                    idx[curr_loc + i] = user_select;  //change the color
+                }else{
+                    no_right = true;
+                    break;
+                }
+                if(i != right - 1 && color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
+                    break;  //stop counting
+                }
+            }
+            for(int i = 1; i < up_limit; i++){  //up direction
+                if(color[idx[curr_loc - i * up]] == A_color){
+                    enter_A = true;
+                    idx[curr_loc - i * up] = user_select;  //change the color
+                }else{
+                    no_up = true;
+                    break;
+                }
+                if(i != up - 1 && color[idx[curr_loc - (i + 1) * up]] != A_color){
+                    break;
+                }
+            }
+            if(no_up == true && no_right == true){
+                return;
+            }
+            previous_loc = curr_loc;  //store curr loc for next round usage
+            curr_loc = 20 - (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
+            right_limit--;
+            up_limit--;
+        }
+    }
+
+    //color for user B; upper right corner
+    if(player == 1){
+        int B_color = color[idx[4]];
+        int curr_loc_B = 4;
+        int pre_loc = curr_loc_B;
+        int left = 5;
+        int down = 5;
+        int left_limit = 5;
+        int down_limit = 5;
+        bool enter_B = false;
+        bool no_down = false;
+        bool no_left = false;
+        for(int j = 0; j < 4; j++){
+            if(color[idx[curr_loc_B]] != B_color){
+                break;
+            }
+            idx[curr_loc_B] = user_select;  //origin change color
+            if(enter_B == true){
+                enter_B = false;  //flip the notation
+                idx[pre_loc] = user_select;  //change color of previous current location if neighbouring color is same for region
+            }
+            for(int i = 1; i < left_limit; i++){  //left direction; not including origin
+                if(color[idx[curr_loc_B - i]] == B_color){
+                    enter_B = true;
+                    idx[curr_loc_B - i] = user_select;  //change the color
+                }else{
+                    no_left = true;
+                    break;
+                }
+                if(i != left - 1 && color[idx[curr_loc_B - i - 1]] != B_color){  //if connected box is not same color
+                    break;  //stop counting
+                }
+            }
+            for(int i = 1; i < down_limit; i++){  //down direction
+                if(color[idx[curr_loc_B + i * down]] == B_color){
+                    enter_B = true;
+                    idx[curr_loc_B + i * down] = user_select;  //change the color
+                }else{
+                    no_down = true;
+                    break;
+                }
+                if(i != down - 1 && color[idx[curr_loc_B + (i + 1) * down]] != B_color){
+                    break;
+                }
+            }
+            if(no_down == true && no_left == true){
+                return;
+            }
+            pre_loc = curr_loc_B;  //store curr loc for further use
+            curr_loc_B = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
+            down_limit--;
+            left_limit--;
+        }
+    }
+}
+
+/* return the selected color */
+int selectColor(){
+    if(yellow_0 == true){
+        return YELLOW;
+    }else if(pink_1 == true){
+        return PINK;
+    }else if(cyan_2 == true){
+        return CYAN;
+    }else if(blue_3 == true){
+        return BLUE;
+    }else if(grey_4 == true){
+        return GREY;
+    }else{
+        return -1;  //case when no color is selected
+    }
+}
+
+/* return the turn */
+int switchPlayer(){
+    if(playerA_0 == true){
+        return 0;
+    }else if(playerB_1 == true){
+        return 1;
+    }else{
+        return -1;
+    }
+}
+
+
+
+
+
 
 // Code from ARM* Generic Interrupt Controller document from lab 4
 /* setup the KEY interrupts in the FPGA */
@@ -645,23 +834,25 @@ void pushbutton_ISR(void) {
     press = *(KEY_ptr + 3); // read the key interrupt register
     *(KEY_ptr + 3) = press; // Clear the interrupt
     if (press & 0x1){ // KEY0
-        printf("Key0 is pressed, player 1's turn\n");
+        printf("Key0 is pressed, player A's turn\n");  //start of player A
+        playerA_0 = true;  //after pressed, bool is true, A select color
+        playerB_1 = false;
         switches_ISR();
         // 
         // select colour for player one function
-
     } else if (press & 0x2){ // KEY1
-        printf("Key1 is pressed, player 2's turn\n");
-
+        printf("Key1 is pressed, player B's turn\n");  //end of player A, start of player B
+        playerB_1 = true;  //after pressed, bool is true, B select color
+        playerA_0 = false;
+        switches_ISR();
         // select colour for player two function
-
-
     } else{ 
-       printf("Wrong key pressed, press KEY0 for player 1's turn and KEY1 for player's turn\n");
+       printf("Wrong key pressed, press KEY0 for player A's turn and KEY1 for player B's turn\n");
+       playerA_0 = false;
+       playerB_1 = false;
     }
     return;
 }
-
 
 void switches_ISR (void){
     volatile int* SW_ptr = (int *) SW_BASE;
@@ -669,12 +860,44 @@ void switches_ISR (void){
 
     if (switch_value & 0x1){ // SW0
         printf("SW0 is ON\n");
-
-    } else if ( switch_value & 0x2){ // SW1
+        yellow_0 = true;
+        pink_1 = false;
+        cyan_2 = false;
+        blue_3 = false;
+        grey_4 = false;
+    } else if (switch_value & 0x2){ // SW1
         printf("SW1 is ON\n");
+        pink_1 = true;
+        yellow_0 = false;
+        cyan_2 = false;
+        blue_3 = false;
+        grey_4 = false;
+    } else if(switch_value & 0x4){  //Sw2
+        cyan_2 = true;
+        pink_1 = false;
+        yellow_0 = false;
+        blue_3 = false;
+        grey_4 = false;
+    }else if(switch_value & 0x8){  //Sw3
+        blue_3 = true;
+        cyan_2 = false;
+        pink_1 = false;
+        yellow_0 = false;
+        grey_4 = false;
+    }else if(switch_value & 0x10){  //SW4
+        grey_4 = true;
+        blue_3 = false;
+        cyan_2 = false;
+        pink_1 = false;
+        yellow_0 = false;
     }
     else{ 
        printf("No switch is ON\n");
+       grey_4 = false;
+        blue_3 = false;
+        cyan_2 = false;
+        pink_1 = false;
+        yellow_0 = false;
     }
 
 }
