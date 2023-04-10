@@ -106,6 +106,7 @@ void enable_A9_interrupts(void);
 void set_A9_IRQ_stack(void);
 void config_GIC(void);
 void pushbutton_ISR(void);
+void switches_ISR (void);
 void config_interrupt(int N, int CPU_target);
 
 
@@ -114,8 +115,36 @@ volatile int pixel_buffer_start;
 bool initial = false;
 
 
+// Define the remaining exception handlers
+void __attribute__((interrupt)) __cs3_reset(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_undef(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_swi(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_pabort(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_dabort(void) {
+    while (1);
+}
+void __attribute__((interrupt)) __cs3_isr_fiq(void) {
+    while (1);
+}
+
+
+
 /* main function */
 int main(void){
+
+    disable_A9_interrupts(); // disable interrupts in the A9 processor
+    set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
+    config_GIC(); // configure the general interrupt controller
+    config_KEYs(); // configure pushbutton KEYs to generate interrupts
+    enable_A9_interrupts(); // enable interrupts in the A9 processor
 
     srand(time(NULL)); // makes sure that a new color pattern is generated each time
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020;
@@ -156,12 +185,7 @@ int main(void){
     initial = true;
     colorRestrict(idx, color);
     
-    disable_A9_interrupts(); // disable interrupts in the A9 processor
-    set_A9_IRQ_stack(); // initialize the stack pointer for IRQ mode
-    config_GIC(); // configure the general interrupt controller
-    config_KEYs(); // configure pushbutton KEYs to generate interrupts
-    enable_A9_interrupts(); // enable interrupts in the A9 processor
-
+    
     while (1){
         /* HEX: a displayer to show the marks */
         //calculate the boxes two users owned
@@ -539,7 +563,8 @@ void __attribute__((interrupt)) __cs3_isr_irq(void) {
     int interrupt_ID = *((int *)0xFFFEC10C);
     if (interrupt_ID == 73){ // check if interrupt is from the KEYs
         pushbutton_ISR();
-    } else {
+    }
+    else {
         while (1);
     }
     // Write to the End of Interrupt Register (ICCEOIR)
@@ -547,25 +572,7 @@ void __attribute__((interrupt)) __cs3_isr_irq(void) {
 }
 
 
-// Define the remaining exception handlers
-void __attribute__((interrupt)) __cs3_reset(void) {
-    while (1);
-}
-void __attribute__((interrupt)) __cs3_isr_undef(void) {
-    while (1);
-}
-void __attribute__((interrupt)) __cs3_isr_swi(void) {
-    while (1);
-}
-void __attribute__((interrupt)) __cs3_isr_pabort(void) {
-    while (1);
-}
-void __attribute__((interrupt)) __cs3_isr_dabort(void) {
-    while (1);
-}
-void __attribute__((interrupt)) __cs3_isr_fiq(void) {
-    while (1);
-}
+
 
 
 
@@ -628,24 +635,45 @@ void config_GIC(void) {
 *******************************************************************/
 void pushbutton_ISR(void) { // need to configure this --------------------------------
     /* KEY base address */
-    volatile int * KEY_ptr = (int *) 0xFF200050;
-    /* HEX display base address */
-    volatile int * HEX3_HEX0_ptr = (int *) 0xFF200020;
-    int press, HEX_bits;
-    press = *(KEY_ptr + 3); // read the pushbutton interrupt register
+    volatile int * KEY_ptr = (int *) KEY_BASE;
+    int press;
+    press = *(KEY_ptr + 3); // read the key interrupt register
     *(KEY_ptr + 3) = press; // Clear the interrupt
     if (press & 0x1){ // KEY0
-        HEX_bits = 0b00111111;
+        printf("Key0 is pressed, player 1's turn\n");
+        switches_ISR();
+
+        // select colour for player one function
+
     } else if (press & 0x2){ // KEY1
-        HEX_bits = 0b00000110;
-    } else if (press & 0x4){ // KEY2
-        HEX_bits = 0b01011011;
-    } else{ // press & 0x8, which is KEY3
-        HEX_bits = 0b01001111;
-        *HEX3_HEX0_ptr = HEX_bits;
+        printf("Key1 is pressed, player 2's turn\n");
+
+        // select colour for player two function
+
+
+    } else{ 
+       printf("Wrong key pressed, press KEY0 for player 1's turn and KEY1 for player's turn\n");
     }
     return;
 }
+
+
+void switches_ISR (void){
+    volatile int* SW_ptr = (int *) SW_BASE;
+    int switch_value = *SW_ptr;
+
+    if (switch_value & 0x1){ // SW0
+        printf("SW0 is ON\n");
+
+    } else if ( switch_value & 0x2){ // SW1
+        printf("SW1 is ON\n");
+    }
+    else{ 
+       printf("No switch is ON\n");
+    }
+
+}
+
 
 void config_interrupt(int N, int CPU_target) {
     int reg_offset, index, value, address;
