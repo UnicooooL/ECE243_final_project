@@ -108,11 +108,17 @@ void config_GIC(void);
 void pushbutton_ISR(void);
 void switches_ISR (void);
 void config_interrupt(int N, int CPU_target);
+void wait();
 void getColor(int colorNum);
+void flashingAnimation(bool A, bool B);
 
 /* global variable */
 volatile int pixel_buffer_start; 
 bool initial = false;
+
+int playerA[25] = {0};
+int playerB[25] = {0};
+
 
 
 // Define the remaining exception handlers
@@ -136,7 +142,7 @@ void __attribute__((interrupt)) __cs3_isr_fiq(void) {
 }
 
 
-
+int idx[25];  //CONTAINER FOR 25 RANDOM
 /* main function */
 int main(void){
 
@@ -151,7 +157,7 @@ int main(void){
     
     // declare other variables
     int color[5] = {YELLOW, PINK, CYAN, BLUE, GREY};
-    int idx[25];  //CONTAINER FOR 25 RANDOM
+
 
     /* code generates the numbers such that no neighbouring colors are the same as the current colour */
     int grid_width = 5; 
@@ -641,7 +647,7 @@ void pushbutton_ISR(void) {
     if (press & 0x1){ // KEY0
         printf("Key0 is pressed, player 1's turn\n");
         switches_ISR();
-
+        // 
         // select colour for player one function
 
     } else if (press & 0x2){ // KEY1
@@ -717,3 +723,40 @@ void getColor(int colorNum){
     }
 
 }
+
+// Code from lecture 17-18 
+void wait(){
+    volatile int * pixel_ctrl_ptr = (int *)0xFF203020; // pixel (DMA) controller (I/O)
+    register int status;
+    *pixel_ctrl_ptr = 1; // start synchronization; s bit is set to 1
+    status = *(pixel_ctrl_ptr + 3); // read status register at address
+    while ((status & 0x01) != 0){
+        status = *(pixel_ctrl_ptr+3);
+    }
+}
+
+// void flashingAnimation(bool A, bool B){
+//     int delta_j = 47;
+//     int delta_i = 47;
+//     int scale = 0;
+
+//     // if player A turn
+//     if(A && !B){
+//         // iterate through the grid
+//         for (int a = 0; a < 25; a++){
+//             int id = 0;
+//             for(int i = 0; i < ROW; i++){
+//                 for(int j = 0; j < COLUMN; j++){
+//                     // draw the box white, wait and re-draw the original color
+//                     if (playerA[id] != 0){
+//                         drawBoxInitial(40 + scale * delta_i, j * delta_j, WHITE);   // draw the color box as white
+//                         wait();
+//                         drawBoxInitial(40 + scale * delta_i, j * delta_j, idx[id]);
+//                     }
+//                     id++;
+//                 }
+//                 scale++;
+//             }
+//         }
+//     }
+// }
