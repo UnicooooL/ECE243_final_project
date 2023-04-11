@@ -90,6 +90,7 @@
 #include <stdbool.h>
 #include <time.h>
 
+
 /* function declare */
 void initial_setup(int color[5], int idx[25]);
 void wait_for_vsync();
@@ -109,11 +110,12 @@ void pushbutton_ISR(void);
 void switches_ISR (void);
 void config_interrupt(int N, int CPU_target);
 void wait();
-void getColor(int colorNum);
-void flashingAnimation(bool A, bool B);
 int selectColor();
 void changeColorRegion(int idx[25], int color[5], int user_select, int player);
 int switchPlayer();
+int in_array(int index, int arr[], int size);
+void checkAdjacent(int grid[]);
+void countColorBlocks(int grid[]);
 
 
 /* global variable */
@@ -127,9 +129,9 @@ bool grey_4 = false;
 bool playerA_0 = false;
 bool playerB_1 = false;
 
+int AllColorBlocks[25] = {0};
 int playerA[25] = {0};
 int playerB[25] = {0};
-
 
 
 // Define the remaining exception handlers
@@ -213,13 +215,14 @@ int main(void){
         //SW 0-4: used to switch colors; | 0, Yellow | 1, Pink | 2, Cyan | 3, Blue | 4, Grey |
         int user_select = selectColor();  //store the color code
         //KEY 0-2: switch player
+
+        // initialize the starting player to be player A
         int player = switchPlayer();  //store the player; -1 for none, 0 for A(1), 1 for B(2)
         //get user chose color and change the user's 'region' into same color...
         changeColorRegion(idx, color, user_select, player);  //change the color idx
         /*starting from lower left corner, traverse to find all connected boxes that have same color as that corner,
           changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
           current region's color to the selected color; no need to manipulate other color boxes. */
-
         scoreCount(idx, color);
 
         /* code for drawing the boxes with new color idx */
@@ -489,6 +492,7 @@ void scoreDisplay(int cntB, int cntA){
 
 /* count the score for A and B */
 void scoreCount(int idx[25], int color[5]){
+    int total_blocks = 0;
     //color for user B; upper right corner
     int A_color = color[idx[20]];
     int cntA = 1;
@@ -507,10 +511,11 @@ void scoreCount(int idx[25], int color[5]){
         if(enter_A == true){
             cntA++;  //count previous current location if neighbouring color is same for region
             enter_A = false;
+            
         }
         for(int i = 1; i < right_limit; i++){  //right direction; not including origin
             if(color[idx[curr_loc + i]] == A_color){
-                playerA[curr_loc + 1] = color[idx[curr_loc + 1]];
+                //playerA[curr_loc + 1] = color[idx[curr_loc + 1]];
                 enter_A = true;
                 cntA++;
             }else{
@@ -523,7 +528,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < up_limit; i++){  //up direction
             if(color[idx[curr_loc - i * up]] == A_color){
-                playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
+                //playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
                 enter_A = true;
                 cntA++;
             }else{
@@ -562,7 +567,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < left_limit; i++){  //left direction; not including origin
             if(color[idx[curr_loc_B - i]] == B_color){
-                playerB[curr_loc_B - i] = color[idx[curr_loc_B - i]];
+                //playerB[curr_loc_B - i] = color[idx[curr_loc_B - i]];
                 enter_B = true;
                 cntB++;
             }else{
@@ -575,7 +580,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < down_limit; i++){  //down direction
             if(color[idx[curr_loc_B + i * down]] == B_color){
-                playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
+                //playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
                 enter_B = true;
                 cntB++;
             }else{
@@ -746,9 +751,6 @@ int switchPlayer(){
 
 
 
-
-
-
 // Code from ARM* Generic Interrupt Controller document from lab 4
 /* setup the KEY interrupts in the FPGA */
 void config_KEYs() { 
@@ -858,33 +860,36 @@ void switches_ISR (void){
     volatile int* SW_ptr = (int *) SW_BASE;
     int switch_value = *SW_ptr;
 
-    if (switch_value & 0x1){ // SW0
+    if (switch_value & 0x1){ // SW0 - yellow
         printf("SW0 is ON\n");
         yellow_0 = true;
         pink_1 = false;
         cyan_2 = false;
         blue_3 = false;
         grey_4 = false;
-    } else if (switch_value & 0x2){ // SW1
+    } else if (switch_value & 0x2){ // SW1 - pink
         printf("SW1 is ON\n");
         pink_1 = true;
         yellow_0 = false;
         cyan_2 = false;
         blue_3 = false;
         grey_4 = false;
-    } else if(switch_value & 0x4){  //Sw2
+    } else if(switch_value & 0x4){  //Sw2 - cyan
+        printf("SW2 is ON\n");
         cyan_2 = true;
         pink_1 = false;
         yellow_0 = false;
         blue_3 = false;
         grey_4 = false;
-    }else if(switch_value & 0x8){  //Sw3
+    }else if(switch_value & 0x8){  //Sw3 - blue
+        printf("SW3 is ON\n");
         blue_3 = true;
         cyan_2 = false;
         pink_1 = false;
         yellow_0 = false;
         grey_4 = false;
-    }else if(switch_value & 0x10){  //SW4
+    }else if(switch_value & 0x10){  //SW4 - Grey
+        printf("SW4 is ON\n");
         grey_4 = true;
         blue_3 = false;
         cyan_2 = false;
@@ -924,29 +929,6 @@ void config_interrupt(int N, int CPU_target) {
     *(char *)address = (char)CPU_target;
 }
 
-void getColor(int colorNum){
-    switch(colorNum){
-        case 0:
-            return YELLOW;
-            break;
-        case 1:
-            return PINK;
-            break;
-        case 2:
-            return CYAN;
-            break;
-        case 3:
-            return BLUE;
-            break;
-        case 4:
-            return GREY;
-            break;
-        default:
-            return WHITE;
-    }
-
-}
-
 // Code from lecture 17-18 
 void wait(){
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020; // pixel (DMA) controller (I/O)
@@ -958,13 +940,67 @@ void wait(){
     }
 }
 
+
+void countColorBlocks(int grid[]){
+	int grid_size = 25;
+	int color = idx[20];
+	int counter =  0;
+	// iterate through the grid
+	for (int row = 0; row < grid_size; row++) {
+		for (int col = 0; col < grid_size; col++) {
+			int index = row * grid_size + col; // calculate the index of the current block
+			if(grid[index] == color){
+			AllColorBlocks[counter] = index;
+			counter++;
+			}
+		}
+	}
+}
+
+
+void checkAdjacent(int grid[]){
+	int size = (sizeof(AllColorBlocks)/sizeof(AllColorBlocks[0]));
+	int counter = 0;
+	
+	for (int i = 0; i < size; i++){
+		int row = AllColorBlocks[i] / 5; // Calculate the row index of the block
+		int col = AllColorBlocks[i] % 5; // Calculate the column index of the block
+		for (int j = 0; j < size; j++){
+			if(i == j){
+				continue;
+			}
+			else{
+				int row2 = AllColorBlocks[j] / 5; // Calculate the row index of the block
+				int col2 = AllColorBlocks[j] % 5; // Calculate the column index of the block
+
+				if (abs(row - row2) + abs(col - col2) == 1 && !in_array(AllColorBlocks[i], playerA, 25)) {
+            playerA[counter] = AllColorBlocks[i];
+						counter+= 1;
+        }
+			
+			}
+		}
+	}
+}
+
+// Helper function to check if an index is in an array
+int in_array(int index, int arr[], int size) {
+    for (int i = 0; i < size; i++) {
+        if (arr[i] == index) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 // void flashingAnimation(bool A, bool B){
 //     int delta_j = 47;
 //     int delta_i = 47;
 //     int scale = 0;
 
 //     // if player A turn
-//     if(A && !B){
+//     if(playerA_0){
 //         // iterate through the grid
 //         for (int a = 0; a < 25; a++){
 //             int id = 0;
