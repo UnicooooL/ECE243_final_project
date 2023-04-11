@@ -108,9 +108,16 @@ void config_GIC(void);
 void pushbutton_ISR(void);
 void switches_ISR (void);
 void config_interrupt(int N, int CPU_target);
+void wait();
+void getColor(int colorNum);
 int selectColor();
 void changeColorRegion(int idx[25], int color[5], int user_select, int player);
 int switchPlayer();
+void draw_whole(int idx[25]);
+void drawWhite(int color[5], int idx[25]);
+bool checkWin(int color[5], int idx[25]);
+void displayWinner();
+
 
 
 /* global variable */
@@ -123,6 +130,9 @@ bool blue_3 = false;
 bool grey_4 = false;
 bool playerA_0 = false;
 bool playerB_1 = false;
+bool win_A = false;
+bool win_B = false;
+bool game_over = false;
 
 int playerA[25] = {0};
 int playerB[25] = {0};
@@ -198,11 +208,14 @@ int main(void){
     initial_setup(color, idx);
     initial = true;
     scoreCount(idx, color);  //put after the color idx has been changed (after get user input)
-    
+	playerA_0 = true;
+	
     while (1){
-        /* HEX: a displayer to show the marks */
-        //calculate the boxes two users owned
-		//scoreCount(idx, color);
+		/* decide which region to flashing */
+		initial_setup(color, idx); 
+		wait_for_vsync();
+		drawWhite(color, idx);
+		wait_for_vsync();
 		
         /* LED 0-5: an indicator for users to tell them which color they cannot pick */
         colorRestrict(idx, color);  //each time change the idx to change the color stored
@@ -213,18 +226,33 @@ int main(void){
         //KEY 0-2: switch player
         int player = switchPlayer();  //store the player; -1 for none, 0 for A(1), 1 for B(2)
         //get user chose color and change the user's 'region' into same color...
-        changeColorRegion(idx, color, user_select, player);  //change the color idx
+		changeColorRegion(idx, color, user_select, player);  //change the color idx
         /*starting from lower left corner, traverse to find all connected boxes that have same color as that corner,
           changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
           current region's color to the selected color; no need to manipulate other color boxes. */
 
+		game_over = checkWin(color, idx);
+		if(game_over){
+			//call a function to display the winner
+			scoreCount(idx, color);
+			displayWinner();
+			break;
+		}
+		
 		/* animation for current selected region */
 		//flashingAnimation(playerA_0, playerB_1);
 
         /* code for drawing the boxes with new color idx */
         initial_setup(color, idx);  //use precreated function to draw box with new colors
 
+		/* HEX: a displayer to show the marks */
+        //calculate the boxes two users owned
 		scoreCount(idx, color);
+		
+		 //wait_for_vsync(); // swap front and back buffers on VGA vertical sync
+		
+		/* animation for current selected region */
+		//flashingAnimation(playerA_0, playerB_1);
 		
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
@@ -233,7 +261,151 @@ int main(void){
     return 0;
 }
 
-/* draw white at left */
+
+
+/* code for subroutines (not shown) */
+
+/* display the winner */
+void displayWinner(){
+	//c: 3, 4, 6; 0b01011000; 0x58
+	//o: 2, 3, 4, 6; 0b01011100; 0x5C
+	//n: 2, 4, 6; 0b01010100; 0x54
+	//g: 0, 1, 2, 3, 5, 6; 0b01101111; 0x6F 
+	int HEX_0_3 = 0x585C546F;  //0 g, 1 n, 2 o, 3 c
+	int HEX_4;
+	if(win_A){
+		HEX_4 = 0x00007700;  //4 blank, 5 A; 0, 1, 2, 4, 5, 6; 0b01110111; 0x77
+	}
+	if(win_B){
+		HEX_4 = 0x00007C00;  //4 blank, 5 B; 2, 3, 4, 5, 6; 0b01111100; 0x7C
+	}
+    int *HEX_0_base = HEX3_HEX0_BASE;
+    int *HEX_4_base = HEX5_HEX4_BASE;
+    *HEX_0_base = HEX_0_3;
+    *HEX_4_base = HEX_4;
+}
+
+/* check for the winner */
+bool checkWin(int color[5], int idx[25]){
+	int lower_left = color[idx[20]];
+	int upper_right = color[idx[4]];
+	
+	/* to check if there are still colors other than these two */
+	for(int i = 0; i < 25; i++){
+		if(color[idx[i]] != lower_left && color[idx[i]] != upper_right){
+			return false;  //represents game not over
+		}
+	}
+	return true;  //represents game is over
+}
+
+void drawWhite(int color[5], int idx[25]){
+	/* initialize needed 2d array */
+	int color_idx[5][5];
+	int status[5][5];
+	int i = 0;
+	//put color idx into 2d array
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			color_idx[row][col] = color[idx[i]];
+			i++;
+		}
+	}
+	//store the check status; 0 for unchecked (initially), -1 for need to be check, 1 for checked
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			status[row][col] = 0;
+		}
+	}
+	
+	/* start changing color idx */
+	/* lower left corner */
+	if(playerA_0 == true){
+		int ll_color = color_idx[4][0];
+		status[4][0] = -1;  //origin need to be checked
+		int current = color_idx[4][0];
+		for(int row = 4; row > 0 || row == 0; row--){
+			for(int col = 0; col < 5; col++){
+				if(color_idx[row][col] == current && status[row][col] == -1){
+					color_idx[row][col] = WHITE;
+					status[row][col] = 1;  //flip notation to checked
+					if(row == 0){
+						status[row][col + 1] = -1;  // right one
+						continue;
+					}
+					if(col == 4){
+						status[row - 1][col] = -1;  // up one
+						continue;
+					}
+					status[row - 1][col] = -1;  // up one; up one and right one need to be checked
+					status[row][col + 1] = -1;  // right one
+				}  //move to current row next position at the right
+			}
+		}
+
+		/* store back to idx */
+		i = 0;
+		int new_[25];
+		for(int row = 0; row < 5; row++){
+			for(int col = 0; col < 5; col++){
+				new_[i] = color_idx[row][col];
+				i++;
+			}
+		}
+		draw_whole(new_);
+	}
+	
+	/* upper right corner */
+	if(playerB_1 == true){
+		int ur_color = color_idx[0][4];
+		status[0][4] = -1;  //origin need to be checked
+		int current = color_idx[0][4];
+		for(int row = 0; row < 5; row++){
+			for(int col = 4; col >= 0; col--){
+				if(color_idx[row][col] == current && status[row][col] == -1){
+					color_idx[row][col] = WHITE;
+					status[row][col] = 1;  //flip notation to checked
+					if(row == 4){
+						status[row][col - 1] = -1;  // left one
+						continue;
+					}
+					if(col == 0){
+						status[row + 1][col] = -1;  // down one
+						continue;
+					}
+					status[row + 1][col] = -1;  // up one; down one and left one need to be checked
+					status[row][col - 1] = -1;  // left one
+				}  //move to current row next position at the right
+			}
+		}
+
+		/* store back to idx */
+		i = 0;
+		int new[25];
+		for(int row = 0; row < 5; row++){
+			for(int col = 0; col < 5; col++){
+				new[i] = color_idx[row][col];
+				i++;
+			}
+		}
+		draw_whole(new);
+	}
+}
+
+void draw_whole(int idx[25]){  //here idx[i] stores a color
+    int delta_j = 47;
+    int delta_i = 47;
+    int scale = 0;
+    int id = 0;
+    for(int i = 0; i < ROW; i++){
+        for(int j = 0; j < COLUMN; j++){
+            //drawBoxInitial(40 + scale * delta_i, j * delta_j, color[idx[id]]);  //draw the color box
+            drawBoxInitial(40 + j * delta_j, scale * delta_i, idx[id]);  //draw the color box
+            id++;
+        }
+        scale++;
+    }
+}
 
 /* given helper function from lecture */
 void wait_for_vsync(){
@@ -588,7 +760,7 @@ void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
 	
 	/* start changing color idx */
 	/* lower left corner */
-	if(player == 0){
+	if(player == 1){
 		int ll_color = color_idx[4][0];
 		status[4][0] = -1;  //origin need to be checked
 		int current = color_idx[4][0];
@@ -626,7 +798,7 @@ void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
 	}
 	
 	/* upper right corner */
-	if(player == 1){
+	if(player == 0){
 		int ur_color = color_idx[0][4];
 		status[0][4] = -1;  //origin need to be checked
 		int current = color_idx[0][4];
@@ -665,6 +837,7 @@ void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
 	
 }
 
+
 /* return the selected color */
 int selectColor(){
     if(yellow_0 == true){
@@ -695,7 +868,6 @@ int switchPlayer(){
 
 
 
-// Code from ARM* Generic Interrupt Controller document from lab 4
 /* setup the KEY interrupts in the FPGA */
 void config_KEYs() { 
     volatile int * KEY_ptr = (int *) 0xFF200050; // pushbutton KEY base address
@@ -703,7 +875,6 @@ void config_KEYs() {
 }
 
 
-// Code from ARM* Generic Interrupt Controller document from lab 4
 // Define the IRQ exception handler 
 void __attribute__((interrupt)) __cs3_isr_irq(void) {
     // Read the ICCIAR from the CPU Interface in the GIC
@@ -728,7 +899,6 @@ void disable_A9_interrupts(void) {
 }
 
 
-// Code from ARM* Generic Interrupt Controller document from lab 4
 /*
 * Turn on interrupts in the ARM processor
 */
@@ -738,7 +908,7 @@ void enable_A9_interrupts(void) {
 }
 
 
-// Code from ARM* Generic Interrupt Controller document from lab 4
+
 /*
 * Initialize the banked stack pointer register for IRQ mode
 */
@@ -756,7 +926,6 @@ void set_A9_IRQ_stack(void) {
 }
 
 
-// Code from ARM* Generic Interrupt Controller document from lab 4
 /*
 * Configure the Generic Interrupt Controller (GIC)
 */
@@ -781,16 +950,16 @@ void pushbutton_ISR(void) {
     *(KEY_ptr + 3) = press; // Clear the interrupt
     if (press & 0x1){ // KEY0
         printf("Key0 is pressed, player A's turn\n");  //start of player A
-        playerA_0 = true;  //after pressed, bool is true, A select color
-        playerB_1 = false;
-        switches_ISR();
+		switches_ISR();
+        playerA_0 = false;  //after pressed, bool is true, A select color
+        playerB_1 = true;
         // 
         // select colour for player one function
     } else if (press & 0x2){ // KEY1
+		switches_ISR();
         printf("Key1 is pressed, player B's turn\n");  //end of player A, start of player B
-        playerB_1 = true;  //after pressed, bool is true, B select color
-        playerA_0 = false;
-        switches_ISR();
+        playerB_1 = false;  //after pressed, bool is true, B select color
+        playerA_0 = true;
         // select colour for player two function
     } else{ 
        printf("Wrong key pressed, press KEY0 for player A's turn and KEY1 for player B's turn\n");
@@ -870,7 +1039,64 @@ void config_interrupt(int N, int CPU_target) {
     *(char *)address = (char)CPU_target;
 }
 
+void getColor(int colorNum){
+    switch(colorNum){
+        case 0:
+            return YELLOW;
+            break;
+        case 1:
+            return PINK;
+            break;
+        case 2:
+            return CYAN;
+            break;
+        case 3:
+            return BLUE;
+            break;
+        case 4:
+            return GREY;
+            break;
+        default:
+            return WHITE;
+    }
 
+}
 
+void wait(){
+    volatile int * pixel_ctrl_ptr = (int *)0xFF203020; // pixel (DMA) controller (I/O)
+    register int status;
+    *pixel_ctrl_ptr = 1; // start synchronization; s bit is set to 1
+    status = *(pixel_ctrl_ptr + 3); // read status register at address
+    while ((status & 0x01) != 0){
+        status = *(pixel_ctrl_ptr+3);
+    }
+}
+
+/* animation */
+/*void flashingAnimation(bool A, bool B){
+    int delta_j = 47;
+    int delta_i = 47;
+    int scale = 0;
+
+    // if player A turn
+    if(A && !B){
+        // iterate through the grid
+        for (int a = 0; a < 25; a++){
+            int id = 0;
+            for(int i = 0; i < ROW; i++){
+                for(int j = 0; j < COLUMN; j++){
+                    // draw the box white, wait and re-draw the original color
+                    if (playerA[id] != 0){
+                        drawBoxInitial(40 + scale * delta_i, j * delta_j, WHITE);   // draw the color box as white
+                        wait();
+                        drawBoxInitial(40 + scale * delta_i, j * delta_j, idx[id]);
+                    }
+                    id++;
+                }
+                scale++;
+            }
+        }
+    }
+}*/
 	
 	
