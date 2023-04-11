@@ -90,7 +90,6 @@
 #include <stdbool.h>
 #include <time.h>
 
-
 /* function declare */
 void initial_setup(int color[5], int idx[25]);
 void wait_for_vsync();
@@ -110,12 +109,11 @@ void pushbutton_ISR(void);
 void switches_ISR (void);
 void config_interrupt(int N, int CPU_target);
 void wait();
+void getColor(int colorNum);
+void flashingAnimation(bool A, bool B);
 int selectColor();
 void changeColorRegion(int idx[25], int color[5], int user_select, int player);
 int switchPlayer();
-int in_array(int index, int arr[], int size);
-void checkAdjacent(int grid[]);
-void countColorBlocks(int grid[]);
 
 
 /* global variable */
@@ -129,9 +127,9 @@ bool grey_4 = false;
 bool playerA_0 = false;
 bool playerB_1 = false;
 
-int AllColorBlocks[25] = {0};
 int playerA[25] = {0};
 int playerB[25] = {0};
+
 
 
 // Define the remaining exception handlers
@@ -215,19 +213,21 @@ int main(void){
         //SW 0-4: used to switch colors; | 0, Yellow | 1, Pink | 2, Cyan | 3, Blue | 4, Grey |
         int user_select = selectColor();  //store the color code
         //KEY 0-2: switch player
-
-        // initialize the starting player to be player A
         int player = switchPlayer();  //store the player; -1 for none, 0 for A(1), 1 for B(2)
         //get user chose color and change the user's 'region' into same color...
         changeColorRegion(idx, color, user_select, player);  //change the color idx
         /*starting from lower left corner, traverse to find all connected boxes that have same color as that corner,
           changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
           current region's color to the selected color; no need to manipulate other color boxes. */
-        scoreCount(idx, color);
+
+		/* animation for current selected region */
+		flashingAnimation(playerA_0, playerB_1);
 
         /* code for drawing the boxes with new color idx */
         initial_setup(color, idx);  //use precreated function to draw box with new colors
 
+		scoreCount(idx, color);
+		
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
         initial = false;
@@ -238,6 +238,19 @@ int main(void){
 
 
 /* code for subroutines (not shown) */
+
+/* color box at left */
+void colorToChose(){
+	//y start from 8, x start from 5; width is 30
+	
+}
+
+void drawColorBox(int x, int y){
+	
+}
+
+/* draw white at left */
+
 /* given helper function from lecture */
 void wait_for_vsync(){
     volatile int* pixel_ctrl_ptr = (int*) PIXEL_BUF_CTRL_BASE;  //pixel controller; address is DMA
@@ -490,9 +503,190 @@ void scoreDisplay(int cntB, int cntA){
     *HEX_4_base = HEX_4;
 }
 
-/* count the score for A and B */
+
+
+/* new counting logic */
 void scoreCount(int idx[25], int color[5]){
-    int total_blocks = 0;
+	/* initialize needed 2d array */
+	int color_idx[5][5];
+	int status[5][5];
+	int idx_number[5][5];
+	int i = 0;
+	//put color idx into 2d array
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			color_idx[row][col] = color[idx[i]];
+			idx_number[row][col] = idx[i];
+			i++;
+		}
+	}
+	//store the check status; 0 for unchecked (initially), -1 for need to be check, 1 for checked
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			status[row][col] = 0;
+		}
+	}
+	
+	/* start counting */
+	/* lower left corner */
+	int ll_color = color_idx[4][0];
+	int cnt_ll = 0;
+	status[4][0] = -1;  //origin need to be checked
+	for(int row = 4; row >= 0; row--){
+		for(int col = 0; col < 5; col++){
+			if(color_idx[row][col] == ll_color && status[row][col] == -1){
+				playerA[idx_number[row][col]] = ll_color;  //store player A's region idx
+				cnt_ll++;  //current position need to be checked and equal to the color
+				status[row][col] = 1;  //flip notation to checked
+				if(row == 0){
+					status[row][col + 1] = -1;  // right one
+					continue;
+				}
+				if(col == 4){
+					status[row - 1][col] = -1;  // up one
+					continue;
+				}
+				status[row - 1][col] = -1;  // up one; up one and right one need to be checked
+				status[row][col + 1] = -1;  // right one
+			}  //move to current row next position at the right
+		}
+	}
+	
+	/* upper right corner */
+	int ur_color = color_idx[0][4];
+	int cnt_ur = 0;
+	status[0][4] = -1;  //origin need to be checked
+	for(int row = 0; row < 5; row++){
+		for(int col = 4; col >= 0; col--){
+			if(color_idx[row][col] == ur_color && status[row][col] == -1){
+				playerB[idx_number[row][col]] = ur_color;  //store player B's region idx
+				cnt_ur++;  //current position need to be checked and equal to the color
+				status[row][col] = 1;  //flip notation to checked
+				if(row == 4){
+					status[row][col - 1] = -1;  // left one
+					continue;
+				}
+				if(col == 0){
+					status[row + 1][col] = -1;  // down one
+					continue;
+				}
+				status[row + 1][col] = -1;  // down one; up one and right one need to be checked
+				status[row][col - 1] = -1;  // left one
+			}  //move to current row next position at the right
+		}
+	}
+	/* display on HEX */
+	scoreDisplay(cnt_ll, cnt_ur);
+}
+
+/* change the color region new logic */
+void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
+	/* initialize needed 2d array */
+	int color_idx[5][5];
+	int status[5][5];
+	int i = 0;
+	//put color idx into 2d array
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			color_idx[row][col] = color[idx[i]];
+			i++;
+		}
+	}
+	//store the check status; 0 for unchecked (initially), -1 for need to be check, 1 for checked
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			status[row][col] = 0;
+		}
+	}
+	
+	/* start changing color idx */
+	/* lower left corner */
+	if(player == 0){
+		int ll_color = color_idx[4][0];
+		status[4][0] = -1;  //origin need to be checked
+		int current = color_idx[4][0];
+		for(int row = 4; row > 0 || row == 0; row--){
+			for(int col = 0; col < 5; col++){
+				if(color_idx[row][col] == current && status[row][col] == -1){
+					color_idx[row][col] = user_select_;
+					status[row][col] = 1;  //flip notation to checked
+					if(row == 0){
+						status[row][col + 1] = -1;  // right one
+						continue;
+					}
+					if(col == 4){
+						status[row - 1][col] = -1;  // up one
+						continue;
+					}
+					status[row - 1][col] = -1;  // up one; up one and right one need to be checked
+					status[row][col + 1] = -1;  // right one
+				}  //move to current row next position at the right
+			}
+		}
+
+		/* store back to idx */
+		i = 0;
+		for(int row = 0; row < 5; row++){
+			for(int col = 0; col < 5; col++){
+				for(int id = 0; id < 5; id++){
+					if(color[id] == color_idx[row][col]){
+						idx[i] = id;
+					}
+				}
+				i++;
+			}
+		}
+	}
+	
+	/* upper right corner */
+	if(player == 1){
+		int ur_color = color_idx[0][4];
+		status[0][4] = -1;  //origin need to be checked
+		int current = color_idx[0][4];
+		for(int row = 0; row < 5; row++){
+			for(int col = 4; col >= 0; col--){
+				if(color_idx[row][col] == current && status[row][col] == -1){
+					color_idx[row][col] = user_select_;
+					status[row][col] = 1;  //flip notation to checked
+					if(row == 4){
+						status[row][col - 1] = -1;  // left one
+						continue;
+					}
+					if(col == 0){
+						status[row + 1][col] = -1;  // down one
+						continue;
+					}
+					status[row + 1][col] = -1;  // up one; down one and left one need to be checked
+					status[row][col - 1] = -1;  // left one
+				}  //move to current row next position at the right
+			}
+		}
+
+		/* store back to idx */
+		i = 0;
+		for(int row = 0; row < 5; row++){
+			for(int col = 0; col < 5; col++){
+				for(int id = 0; id < 5; id++){
+					if(color[id] == color_idx[row][col]){
+						idx[i] = id;
+					}
+				}
+				i++;
+			}
+		}
+	}
+	
+}
+
+
+
+
+
+
+
+
+/* count the score for A and B */
+/*void scoreCount(int idx[25], int color[5]){
     //color for user B; upper right corner
     int A_color = color[idx[20]];
     int cntA = 1;
@@ -505,17 +699,16 @@ void scoreCount(int idx[25], int color[5]){
     bool no_up = false;
     bool no_right = false;
     for(int j = 0; j < 4; j++){
-        if(color[idx[curr_loc]] != A_color && enter_A == false){
+        if(color[idx[curr_loc]] != A_color){
             break;
         }
         if(enter_A == true){
             cntA++;  //count previous current location if neighbouring color is same for region
             enter_A = false;
-            
         }
         for(int i = 1; i < right_limit; i++){  //right direction; not including origin
             if(color[idx[curr_loc + i]] == A_color){
-                //playerA[curr_loc + 1] = color[idx[curr_loc + 1]];
+                playerA[curr_loc + 1] = color[idx[curr_loc + 1]];
                 enter_A = true;
                 cntA++;
             }else{
@@ -528,7 +721,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < up_limit; i++){  //up direction
             if(color[idx[curr_loc - i * up]] == A_color){
-                //playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
+                playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
                 enter_A = true;
                 cntA++;
             }else{
@@ -567,7 +760,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < left_limit; i++){  //left direction; not including origin
             if(color[idx[curr_loc_B - i]] == B_color){
-                //playerB[curr_loc_B - i] = color[idx[curr_loc_B - i]];
+                playerB[curr_loc_B - i] = color[idx[curr_loc_B - i]];
                 enter_B = true;
                 cntB++;
             }else{
@@ -580,7 +773,7 @@ void scoreCount(int idx[25], int color[5]){
         }
         for(int i = 1; i < down_limit; i++){  //down direction
             if(color[idx[curr_loc_B + i * down]] == B_color){
-                //playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
+                playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
                 enter_B = true;
                 cntB++;
             }else{
@@ -599,10 +792,10 @@ void scoreCount(int idx[25], int color[5]){
         left_limit--;
     }
     scoreDisplay(cntA, cntB);
-}
+} */
 
 /* change the corresponding color of each region */
-void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
+/*void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
     int user_select = 0;
     for(int i = 0; i < 5; i++){
         if(color[i] == user_select_){
@@ -719,7 +912,7 @@ void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
             left_limit--;
         }
     }
-}
+}*/
 
 /* return the selected color */
 int selectColor(){
@@ -860,36 +1053,33 @@ void switches_ISR (void){
     volatile int* SW_ptr = (int *) SW_BASE;
     int switch_value = *SW_ptr;
 
-    if (switch_value & 0x1){ // SW0 - yellow
+    if (switch_value & 0x1){ // SW0
         printf("SW0 is ON\n");
         yellow_0 = true;
         pink_1 = false;
         cyan_2 = false;
         blue_3 = false;
         grey_4 = false;
-    } else if (switch_value & 0x2){ // SW1 - pink
+    } else if (switch_value & 0x2){ // SW1
         printf("SW1 is ON\n");
         pink_1 = true;
         yellow_0 = false;
         cyan_2 = false;
         blue_3 = false;
         grey_4 = false;
-    } else if(switch_value & 0x4){  //Sw2 - cyan
-        printf("SW2 is ON\n");
+    } else if(switch_value & 0x4){  //Sw2
         cyan_2 = true;
         pink_1 = false;
         yellow_0 = false;
         blue_3 = false;
         grey_4 = false;
-    }else if(switch_value & 0x8){  //Sw3 - blue
-        printf("SW3 is ON\n");
+    }else if(switch_value & 0x8){  //Sw3
         blue_3 = true;
         cyan_2 = false;
         pink_1 = false;
         yellow_0 = false;
         grey_4 = false;
-    }else if(switch_value & 0x10){  //SW4 - Grey
-        printf("SW4 is ON\n");
+    }else if(switch_value & 0x10){  //SW4
         grey_4 = true;
         blue_3 = false;
         cyan_2 = false;
@@ -929,6 +1119,29 @@ void config_interrupt(int N, int CPU_target) {
     *(char *)address = (char)CPU_target;
 }
 
+void getColor(int colorNum){
+    switch(colorNum){
+        case 0:
+            return YELLOW;
+            break;
+        case 1:
+            return PINK;
+            break;
+        case 2:
+            return CYAN;
+            break;
+        case 3:
+            return BLUE;
+            break;
+        case 4:
+            return GREY;
+            break;
+        default:
+            return WHITE;
+    }
+
+}
+
 // Code from lecture 17-18 
 void wait(){
     volatile int * pixel_ctrl_ptr = (int *)0xFF203020; // pixel (DMA) controller (I/O)
@@ -940,82 +1153,29 @@ void wait(){
     }
 }
 
+/* animation */
+void flashingAnimation(bool A, bool B){
+    int delta_j = 47;
+    int delta_i = 47;
+    int scale = 0;
 
-void countColorBlocks(int grid[]){
-	int grid_size = 25;
-	int color = idx[20];
-	int counter =  0;
-	// iterate through the grid
-	for (int row = 0; row < grid_size; row++) {
-		for (int col = 0; col < grid_size; col++) {
-			int index = row * grid_size + col; // calculate the index of the current block
-			if(grid[index] == color){
-			AllColorBlocks[counter] = index;
-			counter++;
-			}
-		}
-	}
-}
-
-
-void checkAdjacent(int grid[]){
-	int size = (sizeof(AllColorBlocks)/sizeof(AllColorBlocks[0]));
-	int counter = 0;
-	
-	for (int i = 0; i < size; i++){
-		int row = AllColorBlocks[i] / 5; // Calculate the row index of the block
-		int col = AllColorBlocks[i] % 5; // Calculate the column index of the block
-		for (int j = 0; j < size; j++){
-			if(i == j){
-				continue;
-			}
-			else{
-				int row2 = AllColorBlocks[j] / 5; // Calculate the row index of the block
-				int col2 = AllColorBlocks[j] % 5; // Calculate the column index of the block
-
-				if (abs(row - row2) + abs(col - col2) == 1 && !in_array(AllColorBlocks[i], playerA, 25)) {
-            playerA[counter] = AllColorBlocks[i];
-						counter+= 1;
-        }
-			
-			}
-		}
-	}
-}
-
-// Helper function to check if an index is in an array
-int in_array(int index, int arr[], int size) {
-    for (int i = 0; i < size; i++) {
-        if (arr[i] == index) {
-            return 1;
+    // if player A turn
+    if(A && !B){
+        // iterate through the grid
+        for (int a = 0; a < 25; a++){
+            int id = 0;
+            for(int i = 0; i < ROW; i++){
+                for(int j = 0; j < COLUMN; j++){
+                    // draw the box white, wait and re-draw the original color
+                    if (playerA[id] != 0){
+                        drawBoxInitial(40 + scale * delta_i, j * delta_j, WHITE);   // draw the color box as white
+                        wait();
+                        drawBoxInitial(40 + scale * delta_i, j * delta_j, idx[id]);
+                    }
+                    id++;
+                }
+                scale++;
+            }
         }
     }
-    return 0;
 }
-
-
-// void flashingAnimation(bool A, bool B){
-//     int delta_j = 47;
-//     int delta_i = 47;
-//     int scale = 0;
-
-//     // if player A turn
-//     if(playerA_0){
-//         // iterate through the grid
-//         for (int a = 0; a < 25; a++){
-//             int id = 0;
-//             for(int i = 0; i < ROW; i++){
-//                 for(int j = 0; j < COLUMN; j++){
-//                     // draw the box white, wait and re-draw the original color
-//                     if (playerA[id] != 0){
-//                         drawBoxInitial(40 + scale * delta_i, j * delta_j, WHITE);   // draw the color box as white
-//                         wait();
-//                         drawBoxInitial(40 + scale * delta_i, j * delta_j, idx[id]);
-//                     }
-//                     id++;
-//                 }
-//                 scale++;
-//             }
-//         }
-//     }
-// }
