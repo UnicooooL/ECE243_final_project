@@ -114,6 +114,8 @@ void flashingAnimation(bool A, bool B);
 int selectColor();
 void changeColorRegion(int idx[25], int color[5], int user_select, int player);
 int switchPlayer();
+void draw_whole(int idx[25]);
+void drawWhite(int color[5], int idx[25], int player);
 
 
 /* global variable */
@@ -169,7 +171,11 @@ int main(void){
     // declare other variables
     int color[5] = {YELLOW, PINK, CYAN, BLUE, GREY};
 
-
+	//set the timmer
+	volatile int * timer_ptr = (int *)TIMER_BASE;
+	*(timer_ptr) = 50000000;
+	*(timer_ptr + 2) = 0b011;
+	
     /* code generates the numbers such that no neighbouring colors are the same as the current colour */
     int grid_width = 5; 
     int grid_height = 5;
@@ -220,13 +226,22 @@ int main(void){
           changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
           current region's color to the selected color; no need to manipulate other color boxes. */
 
-		/* animation for current selected region */
-		flashingAnimation(playerA_0, playerB_1);
-
+		scoreCount(idx, color);
+		
         /* code for drawing the boxes with new color idx */
         initial_setup(color, idx);  //use precreated function to draw box with new colors
-
-		scoreCount(idx, color);
+		
+		wait(); // swap front and back buffers on VGA vertical sync
+		
+		/* animation for current selected region */
+		//flashingAnimation(playerA_0, playerB_1);
+		drawWhite(color, idx, player);
+		wait();
+		initial_setup(color, idx);
+		
+		//wait(); // swap front and back buffers on VGA vertical sync
+		
+		//initial_setup(color, idx); 
 		
         wait_for_vsync(); // swap front and back buffers on VGA vertical sync
         pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
@@ -245,8 +260,112 @@ void colorToChose(){
 	
 }
 
-void drawColorBox(int x, int y){
+void drawWhite(int color[5], int idx[25], int player){
+	/* initialize needed 2d array */
+	int color_idx[5][5];
+	int status[5][5];
+	int i = 0;
+	//put color idx into 2d array
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			color_idx[row][col] = color[idx[i]];
+			i++;
+		}
+	}
+	//store the check status; 0 for unchecked (initially), -1 for need to be check, 1 for checked
+	for(int row = 0; row < 5; row++){
+		for(int col = 0; col < 5; col++){
+			status[row][col] = 0;
+		}
+	}
 	
+	/* start changing color idx */
+	/* lower left corner */
+	if(player == 0){
+		int ll_color = color_idx[4][0];
+		status[4][0] = -1;  //origin need to be checked
+		int current = color_idx[4][0];
+		for(int row = 4; row > 0 || row == 0; row--){
+			for(int col = 0; col < 5; col++){
+				if(color_idx[row][col] == current && status[row][col] == -1){
+					color_idx[row][col] = WHITE;
+					status[row][col] = 1;  //flip notation to checked
+					if(row == 0){
+						status[row][col + 1] = -1;  // right one
+						continue;
+					}
+					if(col == 4){
+						status[row - 1][col] = -1;  // up one
+						continue;
+					}
+					status[row - 1][col] = -1;  // up one; up one and right one need to be checked
+					status[row][col + 1] = -1;  // right one
+				}  //move to current row next position at the right
+			}
+		}
+
+		/* store back to idx */
+		i = 0;
+		int new_[25];
+		for(int row = 0; row < 5; row++){
+			for(int col = 0; col < 5; col++){
+				new_[i] = color_idx[row][col];
+				i++;
+			}
+		}
+		draw_whole(new_);
+	}
+	
+	/* upper right corner */
+	if(player == 1){
+		int ur_color = color_idx[0][4];
+		status[0][4] = -1;  //origin need to be checked
+		int current = color_idx[0][4];
+		for(int row = 0; row < 5; row++){
+			for(int col = 4; col >= 0; col--){
+				if(color_idx[row][col] == current && status[row][col] == -1){
+					color_idx[row][col] = WHITE;
+					status[row][col] = 1;  //flip notation to checked
+					if(row == 4){
+						status[row][col - 1] = -1;  // left one
+						continue;
+					}
+					if(col == 0){
+						status[row + 1][col] = -1;  // down one
+						continue;
+					}
+					status[row + 1][col] = -1;  // up one; down one and left one need to be checked
+					status[row][col - 1] = -1;  // left one
+				}  //move to current row next position at the right
+			}
+		}
+
+		/* store back to idx */
+		i = 0;
+		int new[25];
+		for(int row = 0; row < 5; row++){
+			for(int col = 0; col < 5; col++){
+				new[i] = color_idx[row][col];
+				i++;
+			}
+		}
+		draw_whole(new);
+	}
+}
+
+void draw_whole(int idx[25]){  //here idx[i] stores a color
+    int delta_j = 47;
+    int delta_i = 47;
+    int scale = 0;
+    int id = 0;
+    for(int i = 0; i < ROW; i++){
+        for(int j = 0; j < COLUMN; j++){
+            //drawBoxInitial(40 + scale * delta_i, j * delta_j, color[idx[id]]);  //draw the color box
+            drawBoxInitial(40 + j * delta_j, scale * delta_i, idx[id]);  //draw the color box
+            id++;
+        }
+        scale++;
+    }
 }
 
 /* draw white at left */
@@ -510,13 +629,13 @@ void scoreCount(int idx[25], int color[5]){
 	/* initialize needed 2d array */
 	int color_idx[5][5];
 	int status[5][5];
-	int idx_number[5][5];
+	//int idx_number_[5][5];
 	int i = 0;
 	//put color idx into 2d array
 	for(int row = 0; row < 5; row++){
 		for(int col = 0; col < 5; col++){
 			color_idx[row][col] = color[idx[i]];
-			idx_number[row][col] = idx[i];
+			//idx_number_[row][col] = i;
 			i++;
 		}
 	}
@@ -526,6 +645,10 @@ void scoreCount(int idx[25], int color[5]){
 			status[row][col] = 0;
 		}
 	}
+	//initialize playerA array
+	/*for(int c = 0; c < 25; c++){
+		playerA[c] = 0;
+	}*/
 	
 	/* start counting */
 	/* lower left corner */
@@ -535,7 +658,7 @@ void scoreCount(int idx[25], int color[5]){
 	for(int row = 4; row >= 0; row--){
 		for(int col = 0; col < 5; col++){
 			if(color_idx[row][col] == ll_color && status[row][col] == -1){
-				playerA[idx_number[row][col]] = ll_color;  //store player A's region idx
+				//playerA[idx_number_[row][col]] = ll_color;  //store player A's region idx
 				cnt_ll++;  //current position need to be checked and equal to the color
 				status[row][col] = 1;  //flip notation to checked
 				if(row == 0){
@@ -559,7 +682,7 @@ void scoreCount(int idx[25], int color[5]){
 	for(int row = 0; row < 5; row++){
 		for(int col = 4; col >= 0; col--){
 			if(color_idx[row][col] == ur_color && status[row][col] == -1){
-				playerB[idx_number[row][col]] = ur_color;  //store player B's region idx
+				//playerB[idx_number_[row][col]] = ur_color;  //store player B's region idx
 				cnt_ur++;  //current position need to be checked and equal to the color
 				status[row][col] = 1;  //flip notation to checked
 				if(row == 4){
@@ -1149,7 +1272,7 @@ void wait(){
     *pixel_ctrl_ptr = 1; // start synchronization; s bit is set to 1
     status = *(pixel_ctrl_ptr + 3); // read status register at address
     while ((status & 0x01) != 0){
-        status = *(pixel_ctrl_ptr+3);
+        status = *(pixel_ctrl_ptr + 3);
     }
 }
 
@@ -1158,24 +1281,24 @@ void flashingAnimation(bool A, bool B){
     int delta_j = 47;
     int delta_i = 47;
     int scale = 0;
+	int id = 0;
+	
 
     // if player A turn
     if(A && !B){
         // iterate through the grid
-        for (int a = 0; a < 25; a++){
-            int id = 0;
             for(int i = 0; i < ROW; i++){
                 for(int j = 0; j < COLUMN; j++){
                     // draw the box white, wait and re-draw the original color
                     if (playerA[id] != 0){
-                        drawBoxInitial(40 + scale * delta_i, j * delta_j, WHITE);   // draw the color box as white
-                        wait();
-                        drawBoxInitial(40 + scale * delta_i, j * delta_j, idx[id]);
+                        drawBoxInitial(40 + j * delta_j, scale * delta_i, WHITE);   // draw the color box as white
+                        //wait();
+						wait_for_vsync();
+                        drawBoxInitial(40 + j * delta_j, scale * delta_i, playerA[id]);
                     }
                     id++;
                 }
                 scale++;
             }
-        }
     }
 }
