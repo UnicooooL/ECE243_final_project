@@ -853,241 +853,6 @@ void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
 }
 
 
-
-
-
-
-
-
-/* count the score for A and B */
-/*void scoreCount(int idx[25], int color[5]){
-    //color for user B; upper right corner
-    int A_color = color[idx[20]];
-    int cntA = 1;
-    int curr_loc = 20;
-    int right = 5;
-    int up = 5;
-    int up_limit = 5;
-    int right_limit = 5;
-    bool enter_A = false;
-    bool no_up = false;
-    bool no_right = false;
-    for(int j = 0; j < 4; j++){
-        if(color[idx[curr_loc]] != A_color){
-            break;
-        }
-        if(enter_A == true){
-            cntA++;  //count previous current location if neighbouring color is same for region
-            enter_A = false;
-        }
-        for(int i = 1; i < right_limit; i++){  //right direction; not including origin
-            if(color[idx[curr_loc + i]] == A_color){
-                playerA[curr_loc + 1] = color[idx[curr_loc + 1]];
-                enter_A = true;
-                cntA++;
-            }else{
-                no_right = true;
-                break;
-            }
-            if(i != right - 1 && color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
-                break;  //stop counting
-            }
-        }
-        for(int i = 1; i < up_limit; i++){  //up direction
-            if(color[idx[curr_loc - i * up]] == A_color){
-                playerA[curr_loc - i * up] = color[idx[curr_loc - i * up]];
-                enter_A = true;
-                cntA++;
-            }else{
-                no_up = true;
-                break;
-            }
-            if(i != up - 1 && color[idx[curr_loc - (i + 1) * up]] != A_color){
-                break;
-            }
-        }
-        if(no_up == true && no_right == true){
-            break;
-        }
-        curr_loc = 20 - (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
-        right_limit--;
-        up_limit--;
-    }
-    //color for user A; lower left corner
-    int B_color = color[idx[4]];
-    int cntB = 1;
-    int curr_loc_B = 4;
-    int left = 5;
-    int down = 5;
-    int left_limit = 5;
-    int down_limit = 5;
-    bool enter_B = false;
-    bool no_down = false;
-    bool no_left = false;
-    for(int j = 0; j < 4; j++){
-        if(color[idx[curr_loc_B]] != B_color){
-            break;
-        }
-        if(enter_B == true){
-            cntB++;  //count previous current location if neighbouring color is same for region
-            enter_B = false;
-        }
-        for(int i = 1; i < left_limit; i++){  //left direction; not including origin
-            if(color[idx[curr_loc_B - i]] == B_color){
-                playerB[curr_loc_B - i] = color[idx[curr_loc_B - i]];
-                enter_B = true;
-                cntB++;
-            }else{
-                no_left = true;
-                break;
-            }
-            if(i != left - 1 && idx[curr_loc_B - i - 1] != B_color){  //if connected box is not same color
-                break;  //stop counting
-            }
-        }
-        for(int i = 1; i < down_limit; i++){  //down direction
-            if(color[idx[curr_loc_B + i * down]] == B_color){
-                playerB[curr_loc_B + i * down] = color[idx[curr_loc_B + i * down]];
-                enter_B = true;
-                cntB++;
-            }else{
-                no_down = true;
-                break;
-            }
-            if(i != down - 1 && color[idx[curr_loc_B + (i + 1) * down]] != B_color){
-                break;
-            }
-        }
-        if(no_down == true && no_left == true){
-            break;
-        }
-        curr_loc_B = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
-        down_limit--;
-        left_limit--;
-    }
-    scoreDisplay(cntA, cntB);
-} */
-
-/* change the corresponding color of each region */
-/*void changeColorRegion(int idx[25], int color[5], int user_select_, int player){
-    int user_select = 0;
-    for(int i = 0; i < 5; i++){
-        if(color[i] == user_select_){
-            break;
-        }
-        user_select++;
-    }
-    //color for user A; lower left corner
-    if(player == 0){
-        int A_color = color[idx[20]];
-        int curr_loc = 20;
-        int previous_loc = curr_loc;
-        int right = 5;
-        int up = 5;
-        int up_limit = 5;
-        int right_limit = 5;
-        bool enter_A = false;
-        bool no_up = false;
-        bool no_right = false;
-        for(int j = 0; j < 4; j++){
-            if(color[idx[curr_loc]] != A_color){
-                break;
-            }
-            idx[curr_loc] = user_select;  //origin change color
-            if(enter_A == true){
-                idx[previous_loc] = user_select; //change color of previous current location if neighbouring color is same for region
-                enter_A = false;  //flip notation
-            }
-            for(int i = 1; i < right_limit; i++){  //right direction; not including origin
-                if(color[idx[curr_loc + i]] == A_color){
-                    enter_A = true;
-                    idx[curr_loc + i] = user_select;  //change the color
-                }else{
-                    no_right = true;
-                    break;
-                }
-                if(i != right - 1 && color[idx[curr_loc + i + 1]] != A_color){  //if connected box is not same color
-                    break;  //stop counting
-                }
-            }
-            for(int i = 1; i < up_limit; i++){  //up direction
-                if(color[idx[curr_loc - i * up]] == A_color){
-                    enter_A = true;
-                    idx[curr_loc - i * up] = user_select;  //change the color
-                }else{
-                    no_up = true;
-                    break;
-                }
-                if(i != up - 1 && color[idx[curr_loc - (i + 1) * up]] != A_color){
-                    break;
-                }
-            }
-            if(no_up == true && no_right == true){
-                return;
-            }
-            previous_loc = curr_loc;  //store curr loc for next round usage
-            curr_loc = 20 - (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
-            right_limit--;
-            up_limit--;
-        }
-    }
-
-    //color for user B; upper right corner
-    if(player == 1){
-        int B_color = color[idx[4]];
-        int curr_loc_B = 4;
-        int pre_loc = curr_loc_B;
-        int left = 5;
-        int down = 5;
-        int left_limit = 5;
-        int down_limit = 5;
-        bool enter_B = false;
-        bool no_down = false;
-        bool no_left = false;
-        for(int j = 0; j < 4; j++){
-            if(color[idx[curr_loc_B]] != B_color){
-                break;
-            }
-            idx[curr_loc_B] = user_select;  //origin change color
-            if(enter_B == true){
-                enter_B = false;  //flip the notation
-                idx[pre_loc] = user_select;  //change color of previous current location if neighbouring color is same for region
-            }
-            for(int i = 1; i < left_limit; i++){  //left direction; not including origin
-                if(color[idx[curr_loc_B - i]] == B_color){
-                    enter_B = true;
-                    idx[curr_loc_B - i] = user_select;  //change the color
-                }else{
-                    no_left = true;
-                    break;
-                }
-                if(i != left - 1 && color[idx[curr_loc_B - i - 1]] != B_color){  //if connected box is not same color
-                    break;  //stop counting
-                }
-            }
-            for(int i = 1; i < down_limit; i++){  //down direction
-                if(color[idx[curr_loc_B + i * down]] == B_color){
-                    enter_B = true;
-                    idx[curr_loc_B + i * down] = user_select;  //change the color
-                }else{
-                    no_down = true;
-                    break;
-                }
-                if(i != down - 1 && color[idx[curr_loc_B + (i + 1) * down]] != B_color){
-                    break;
-                }
-            }
-            if(no_down == true && no_left == true){
-                return;
-            }
-            pre_loc = curr_loc_B;  //store curr loc for further use
-            curr_loc_B = 4 + (2 * j + 2) * 2;  //update current location; 20, 16, 12, 8, 4
-            down_limit--;
-            left_limit--;
-        }
-    }
-}*/
-
 /* return the selected color */
 int selectColor(){
     if(yellow_0 == true){
@@ -1115,7 +880,6 @@ int switchPlayer(){
         return -1;
     }
 }
-
 
 
 // Code from ARM* Generic Interrupt Controller document from lab 4
@@ -1147,7 +911,7 @@ void __attribute__((interrupt)) __cs3_isr_irq(void) {
 */
 void disable_A9_interrupts(void) {
     int status = 0b11010011;
-    asm("msr cpsr, %[ps]" : : [ps] "r"(status));
+    __asm__("msr cpsr, %[ps]" : : [ps] "r"(status));
 }
 
 
@@ -1157,7 +921,7 @@ void disable_A9_interrupts(void) {
 */
 void enable_A9_interrupts(void) {
     int status = 0b01010011;
-    asm("msr cpsr, %[ps]" : : [ps] "r"(status));
+    __asm__("msr cpsr, %[ps]" : : [ps] "r"(status));
 }
 
 
@@ -1170,12 +934,12 @@ void set_A9_IRQ_stack(void) {
     stack = 0xFFFFFFFF - 7; // top of A9 onchip memory, aligned to 8 bytes
     /* change processor to IRQ mode with interrupts disabled */
     mode = 0b11010010;
-    asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
+    __asm__("msr cpsr, %[ps]" : : [ps] "r"(mode));
     /* set banked stack pointer */
-    asm("mov sp, %[ps]" : : [ps] "r"(stack));
+    __asm__("mov sp, %[ps]" : : [ps] "r"(stack));
     /* go back to SVC mode before executing subroutine return! */
     mode = 0b11010011;
-    asm("msr cpsr, %[ps]" : : [ps] "r"(mode));
+    __asm__("msr cpsr, %[ps]" : : [ps] "r"(mode));
 }
 
 
