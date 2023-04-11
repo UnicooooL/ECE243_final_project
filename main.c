@@ -116,6 +116,8 @@ void changeColorRegion(int idx[25], int color[5], int user_select, int player);
 int switchPlayer();
 void draw_whole(int idx[25]);
 void drawWhite(int color[5], int idx[25], int player);
+bool checkWin(int color[5], int idx[25]);
+void displayWinner();
 
 
 /* global variable */
@@ -128,6 +130,9 @@ bool blue_3 = false;
 bool grey_4 = false;
 bool playerA_0 = false;
 bool playerB_1 = false;
+bool win_A = false;
+bool win_B = false;
+bool game_over = false;
 
 int playerA[25] = {0};
 int playerB[25] = {0};
@@ -209,9 +214,6 @@ int main(void){
     scoreCount(idx, color);  //put after the color idx has been changed (after get user input)
     
     while (1){
-        /* HEX: a displayer to show the marks */
-        //calculate the boxes two users owned
-
         /* LED 0-5: an indicator for users to tell them which color they cannot pick */
         colorRestrict(idx, color);  //each time change the idx to change the color stored
 
@@ -226,7 +228,16 @@ int main(void){
           changed the idx of color according to user interrupt. Same for upper right corner. Only need to change 
           current region's color to the selected color; no need to manipulate other color boxes. */
 
+		/* HEX: a displayer to show the marks */
+        //calculate the boxes two users owned
 		scoreCount(idx, color);
+		
+		game_over = checkWin(color, idx);
+		if(game_over){
+			//call a function to display the winner
+			scoreCount(idx, color);
+			displayWinner();
+		}
 		
         /* code for drawing the boxes with new color idx */
         initial_setup(color, idx);  //use precreated function to draw box with new colors
@@ -253,6 +264,41 @@ int main(void){
 
 
 /* code for subroutines (not shown) */
+
+/* display the winner */
+void displayWinner(){
+	//c: 3, 4, 6; 0b01011000; 0x58
+	//o: 2, 3, 4, 6; 0b01011100; 0x5C
+	//n: 2, 4, 6; 0b01010100; 0x54
+	//g: 0, 1, 2, 3, 5, 6; 0b01101111; 0x6F 
+	int HEX_0_3 = 0x585C546F;  //0 g, 1 n, 2 o, 3 c
+	int HEX_4;
+	if(win_A){
+		HEX_4 = 0x00007700;  //4 blank, 5 A; 0, 1, 2, 4, 5, 6; 0b01110111; 0x77
+	}
+	if(win_B){
+		HEX_4 = 0x00007C00;  //4 blank, 5 B; 2, 3, 4, 5, 6; 0b01111100; 0x7C
+	}
+    int *HEX_0_base = HEX3_HEX0_BASE;
+    int *HEX_4_base = HEX5_HEX4_BASE;
+    *HEX_0_base = HEX_0_3;
+    *HEX_4_base = HEX_4;
+}
+
+/* check for the winner */
+bool checkWin(int color[5], int idx[25]){
+	int lower_left = color[idx[20]];
+	int upper_right = color[idx[4]];
+	
+	/* to check if there are still colors other than these two */
+	for(int i = 0; i < 25; i++){
+		if(color[idx[i]] != lower_left && color[idx[i]] != upper_right){
+			return false;  //represents game not over
+		}
+	}
+	return true;  //represents game is over
+}
+
 
 /* color box at left */
 void colorToChose(){
@@ -697,6 +743,11 @@ void scoreCount(int idx[25], int color[5]){
 				status[row][col - 1] = -1;  // left one
 			}  //move to current row next position at the right
 		}
+	}
+	if(cnt_ll > cnt_ur && game_over == true){
+		win_A = true;
+	}else if(cnt_ur > cnt_ll && game_over == true){
+		win_B = true;
 	}
 	/* display on HEX */
 	scoreDisplay(cnt_ll, cnt_ur);
