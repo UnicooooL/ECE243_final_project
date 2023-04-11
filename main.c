@@ -160,7 +160,7 @@ void __attribute__((interrupt)) __cs3_isr_fiq(void) {
 }
 
 
-int idx[25];  //CONTAINER FOR 25 RANDOM
+
 /* main function */
 int main(void){
 
@@ -175,6 +175,7 @@ int main(void){
     
     // declare other variables
     int color[5] = {YELLOW, PINK, CYAN, BLUE, GREY};
+    int idx[25];  //CONTAINER FOR 25 RANDOM
 
 	//set the timmer
 	volatile int * timer_ptr = (int *)TIMER_BASE;
@@ -676,6 +677,9 @@ void scoreCount(int idx[25], int color[5]){
 	int color_idx[5][5];
 	int status[5][5];
 	//int idx_number_[5][5];
+    int cnt_ll = 0;
+    int cnt_ur = 0;
+
 	int i = 0;
 	//put color idx into 2d array
 	for(int row = 0; row < 5; row++){
@@ -691,15 +695,10 @@ void scoreCount(int idx[25], int color[5]){
 			status[row][col] = 0;
 		}
 	}
-	//initialize playerA array
-	/*for(int c = 0; c < 25; c++){
-		playerA[c] = 0;
-	}*/
-	
 	/* start counting */
 	/* lower left corner */
 	int ll_color = color_idx[4][0];
-	int cnt_ll = 0;
+	
 	status[4][0] = -1;  //origin need to be checked
 	for(int row = 4; row >= 0; row--){
 		for(int col = 0; col < 5; col++){
@@ -750,6 +749,7 @@ void scoreCount(int idx[25], int color[5]){
 		win_B = true;
 	}
 	/* display on HEX */
+    printf("Player A Score: %d\n  Player B Score: %d\n", cnt_ll-1, cnt_ur-1);
 	scoreDisplay(cnt_ll, cnt_ur);
 }
 
@@ -1116,4 +1116,62 @@ void flashingAnimation(bool A, bool B){
                 scale++;
             }
     }
+}
+
+
+// checks if the color block is adjacent to the blocks starting from bottom left
+void checkAdjacent(int grid[]){
+	int size = (sizeof(AllColorBlocks)/sizeof(AllColorBlocks[0]));
+	int counter = 0;
+	
+	for (int i = 0; i < size; i++){
+		int row = AllColorBlocks[i] / 5; // Calculate the row index of the block
+		int col = AllColorBlocks[i] % 5; // Calculate the column index of the block
+		for (int j = 0; j < size; j++){
+			if(i == j){
+				continue;
+			}
+			else{
+				int row2 = AllColorBlocks[j] / 5; // Calculate the row index of the block
+				int col2 = AllColorBlocks[j] % 5; // Calculate the column index of the block
+
+				if (abs(row - row2) + abs(col - col2) == 1 && !in_array(AllColorBlocks[i], playerA, 25)) {
+            playerA[counter] = AllColorBlocks[i];
+						counter+= 1;
+        }
+			
+			}
+		}
+	}
+}
+
+int AllColorBlocks[25] = {0};
+int playerA[25] = {0};
+int playerB[25] = {0};
+
+
+void countColorBlocks(int grid[]){
+	int grid_size = 25;
+	int color = idx[20];
+	int counter =  0;
+	// iterate through the grid
+	for (int row = 0; row < grid_size; row++) {
+		for (int col = 0; col < grid_size; col++) {
+			int index = row * grid_size + col; // calculate the index of the current block
+			if(grid[index] == color){
+			AllColorBlocks[counter] = index;
+			counter++;
+			}
+		}
+	}
+}
+
+// Helper function to check if an index is in an array
+int in_array(int index, int arr[], int size) {
+    for (int i = 0; i < size; i++) {
+        if (arr[i] == index) {
+            return 1;
+        }
+    }
+    return 0;
 }
